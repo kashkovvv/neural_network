@@ -33,6 +33,19 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   )
 endif()
 
+option(NN_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" ON)
+
+add_library(nn_sanitizers INTERFACE)
+
+if(NN_ENABLE_SANITIZERS AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  target_compile_options(
+    nn_sanitizers
+    INTERFACE -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all
+  )
+
+  target_link_options(nn_sanitizers INTERFACE -fsanitize=address,undefined)
+endif()
+
 include(CTest)
 
 if(BUILD_TESTING)
