@@ -6,6 +6,33 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+add_library(nn_warnings INTERFACE)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  target_compile_options(
+    nn_warnings
+    INTERFACE
+      -Wall
+      -Wextra
+      -Wpedantic
+      -Werror
+      -Wconversion
+      -Wsign-conversion
+      -Wshadow
+      -Wnon-virtual-dtor
+      -Wold-style-cast
+      -Woverloaded-virtual
+      -Wnull-dereference
+      -Wdouble-promotion
+      -Wformat=2
+      -Wimplicit-fallthrough
+      -Wduplicated-cond
+      -Wduplicated-branches
+      -Wlogical-op
+      -Wuseless-cast
+  )
+endif()
+
 include(CTest)
 
 if(BUILD_TESTING)
