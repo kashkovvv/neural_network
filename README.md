@@ -1,76 +1,89 @@
-# Neural Network
-The goal of this project is to develop and write a neural network.
+## Roadmap
 
+### 1. Основа проекта
 
-# Project Plan
-## PART I. MATHEMATICAL CORE
-1. Vector
-2. Matrix
-3. Tensor
-4. Operations on them
-5. Transpose
-6. Matrix multiplication
-7. Broadcasting
-8. Numerical stability
+- [ ] Настроить CMake и структуру проекта
+- [ ] Настроить единый запуск тестов
+- [ ] Подключить строгие warnings и sanitizers
+- [x] Реализовать учебный `Vector`
 
-## PART II. NEURON
-9. Linear
-10. ReLU
-11. Sigmoid
-12. Tanh
-13. Softmax
+### 2. Математическое ядро
 
-## PART III. TRAINING
-14. Loss
-15. MSE
-16. CrossEntropy
-17. Derivatives
-18. Chain rule
-19. Backpropagation
-20. Gradient checking
+- [ ] Реализовать `Tensor`
+- [ ] Реализовать базовые операции над тензорами
+- [ ] Реализовать reshape, transpose и broadcasting
+- [ ] Реализовать reductions
+- [ ] Реализовать векторные и матричные операции
+- [ ] Реализовать matrix multiplication
+- [ ] Обеспечить численную устойчивость основных операций
 
-## PART IV. ENGINE
-21. Layer
-22. Parameter
-23. Sequential
-24. Dataset
-25. DataLoader
-26. Batch
-27. SGD
-28. Momentum
-29. Adam
+### 3. Компоненты нейронной сети
 
-## PART V. FIRST REAL NETWORK
-30. XOR
-31. MNIST
-32. Accuracy
-33. Validation
-34. Checkpoint
-35. Serialization
+- [ ] Реализовать линейный слой
+- [ ] Реализовать функции активации
+- [ ] Реализовать функции потерь
+- [ ] Реализовать инициализацию параметров
+- [ ] Собрать прямой проход сети
 
-## PART VI. AUTOGRAD
-36. Computational graph
-37. Topological sort
-38. Value
-39. Automatic differentiation
-40. Tensor autograd
+### 4. Обучение
 
-## PART VII. CNN
-41. Conv2D
-42. Padding
-43. Stride
-44. Pooling
-45. Backward convolution
+- [ ] Вывести и реализовать градиенты основных операций
+- [ ] Реализовать обратное распространение
+- [ ] Реализовать gradient checking
+- [ ] Реализовать gradient descent
+- [ ] Обучить первую сеть на XOR
 
-## PART VIII. TRANSFORMER
-46. Embedding
-47. Positional encoding
-48. Q/K/V
-49. Attention
-50. Multi-head attention
-51. LayerNorm
-52. Residual
-53. FFN
-54. Causal mask
-55. Transformer
-56. Training a small language model
+### 5. Automatic differentiation
+
+- [ ] Реализовать computational graph
+- [ ] Реализовать reverse-mode automatic differentiation
+- [ ] Добавить хранение и накопление градиентов
+- [ ] Реализовать tensor autograd
+- [ ] Проверить autograd относительно ручных и численных градиентов
+
+### 6. Минимальный framework
+
+- [ ] Реализовать `Parameter`
+- [ ] Реализовать общий интерфейс слоёв и моделей
+- [ ] Реализовать `Sequential`
+- [ ] Реализовать SGD, Momentum и Adam
+- [ ] Реализовать сохранение и загрузку модели
+
+### 7. Работа с данными
+
+- [ ] Реализовать `Dataset` и `DataLoader`
+- [ ] Реализовать batching и shuffle
+- [ ] Добавить train, validation и test режимы
+- [ ] Реализовать метрики
+
+### 8. Первые модели
+
+- [ ] Обучить полносвязную сеть на MNIST
+- [ ] Реализовать checkpointing
+- [ ] Реализовать воспроизводимый inference
+
+### 9. Свёрточные сети
+
+- [ ] Реализовать `Conv2D`
+- [ ] Реализовать padding и stride
+- [ ] Реализовать pooling
+- [ ] Реализовать backward для свёртки
+- [ ] Обучить CNN на MNIST
+
+### 10. Transformer
+
+- [ ] Реализовать embeddings и positional encoding
+- [ ] Реализовать attention и causal masking
+- [ ] Реализовать multi-head attention
+- [ ] Реализовать LayerNorm и residual connections
+- [ ] Реализовать Transformer block
+- [ ] Обучить небольшую языковую модель
+
+### 11. Оптимизация
+
+- [ ] Провести профилирование
+- [ ] Оптимизировать layout памяти и cache locality
+- [ ] Уменьшить количество аллокаций
+- [ ] Добавить blocking и tiling для матричных операций
+- [ ] Исследовать SIMD и многопоточность
+- [ ] Исследовать GPU backend
