@@ -33,7 +33,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   )
 endif()
 
-option(NN_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" ON)
+option(NN_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
 add_library(nn_sanitizers INTERFACE)
 
@@ -45,6 +45,10 @@ if(NN_ENABLE_SANITIZERS AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 
   target_link_options(nn_sanitizers INTERFACE -fsanitize=address,undefined)
 endif()
+
+add_library(nn INTERFACE)
+
+target_include_directories(nn INTERFACE "${PROJECT_SOURCE_DIR}/include")
 
 include(CTest)
 
