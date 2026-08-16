@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <limits>
+#include <span>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -30,22 +31,39 @@ class Tensor {
       running_stride = checked_multiply(running_stride, extent);
     }
 
-    if (running_stride > data_.max_size()) {
+    if (running_stride > storage_.max_size()) {
       throw std::length_error("tensor size exceeds storage max_size");
     }
 
-    data_.resize(running_stride);
+    storage_.resize(running_stride);
   }
 
   [[nodiscard]] size_type rank() const noexcept { return shape_.size(); }
 
-  [[nodiscard]] size_type numel() const noexcept { return data_.size(); }
+  [[nodiscard]] size_type numel() const noexcept { return storage_.size(); }
 
-  [[nodiscard]] const shape_type& shape() const noexcept { return shape_; }
+  [[nodiscard]] std::span<const size_type> shape() const& noexcept {
+    return shape_;
+  }
 
-  [[nodiscard]] const strides_type& strides() const noexcept {
+  std::span<const size_type> shape() && = delete;
+  std::span<const size_type> shape() const&& = delete;
+
+  [[nodiscard]] std::span<const size_type> strides() const& noexcept {
     return strides_;
   }
+
+  std::span<const size_type> strides() && = delete;
+  std::span<const size_type> strides() const&& = delete;
+
+  [[nodiscard]] std::span<value_type> elements() & noexcept { return storage_; }
+
+  [[nodiscard]] std::span<const value_type> elements() const& noexcept {
+    return storage_;
+  }
+
+  std::span<value_type> elements() && = delete;
+  std::span<const value_type> elements() const&& = delete;
 
  private:
   [[nodiscard]] static size_type checked_multiply(size_type lhs,
@@ -61,7 +79,7 @@ class Tensor {
 
   shape_type shape_;
   strides_type strides_;
-  storage_type data_;
+  storage_type storage_;
 };
 
 }  // namespace nn

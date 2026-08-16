@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
@@ -39,9 +40,9 @@ void test_single_element_vector_metadata() {
 
   expect(tensor.rank() == 1, "single-element vector rank must be 1");
   expect(tensor.numel() == 1, "single-element vector numel must be 1");
-  expect(tensor.shape() == expected_shape,
+  expect(std::ranges::equal(tensor.shape(), expected_shape),
          "single-element vector shape is incorrect");
-  expect(tensor.strides() == expected_strides,
+  expect(std::ranges::equal(tensor.strides(), expected_strides),
          "single-element vector strides are incorrect");
 }
 
@@ -53,8 +54,10 @@ void test_vector_metadata() {
 
   expect(tensor.rank() == 1, "vector rank must be 1");
   expect(tensor.numel() == 5, "vector numel must be 5");
-  expect(tensor.shape() == expected_shape, "vector shape is incorrect");
-  expect(tensor.strides() == expected_strides, "vector strides are incorrect");
+  expect(std::ranges::equal(tensor.shape(), expected_shape),
+         "vector shape is incorrect");
+  expect(std::ranges::equal(tensor.strides(), expected_strides),
+         "vector strides are incorrect");
 }
 
 void test_three_dimensional_metadata() {
@@ -65,8 +68,9 @@ void test_three_dimensional_metadata() {
 
   expect(tensor.rank() == 3, "3D tensor rank must be 3");
   expect(tensor.numel() == 24, "3D tensor numel must be 24");
-  expect(tensor.shape() == expected_shape, "3D tensor shape is incorrect");
-  expect(tensor.strides() == expected_strides,
+  expect(std::ranges::equal(tensor.shape(), expected_shape),
+         "3D tensor shape is incorrect");
+  expect(std::ranges::equal(tensor.strides(), expected_strides),
          "3D tensor strides are incorrect");
 }
 
@@ -78,9 +82,9 @@ void test_singleton_axis_metadata() {
 
   expect(tensor.rank() == 3, "singleton-axis tensor rank must be 3");
   expect(tensor.numel() == 8, "singleton-axis tensor numel must be 8");
-  expect(tensor.shape() == expected_shape,
+  expect(std::ranges::equal(tensor.shape(), expected_shape),
          "singleton-axis tensor shape is incorrect");
-  expect(tensor.strides() == expected_strides,
+  expect(std::ranges::equal(tensor.strides(), expected_strides),
          "singleton-axis tensor strides are incorrect");
 }
 
@@ -92,9 +96,9 @@ void test_zero_length_vector_metadata() {
 
   expect(tensor.rank() == 1, "zero-length vector rank must be 1");
   expect(tensor.numel() == 0, "zero-length vector numel must be 0");
-  expect(tensor.shape() == expected_shape,
+  expect(std::ranges::equal(tensor.shape(), expected_shape),
          "zero-length vector shape is incorrect");
-  expect(tensor.strides() == expected_strides,
+  expect(std::ranges::equal(tensor.strides(), expected_strides),
          "zero-length vector strides are incorrect");
 }
 
@@ -106,9 +110,9 @@ void test_zero_extent_metadata() {
 
   expect(tensor.rank() == 3, "zero-extent tensor rank must be 3");
   expect(tensor.numel() == 0, "zero-extent tensor numel must be 0");
-  expect(tensor.shape() == expected_shape,
+  expect(std::ranges::equal(tensor.shape(), expected_shape),
          "zero-extent tensor shape is incorrect");
-  expect(tensor.strides() == expected_strides,
+  expect(std::ranges::equal(tensor.strides(), expected_strides),
          "zero-extent tensor strides are incorrect");
 }
 
@@ -120,7 +124,7 @@ void test_shape_ownership() {
 
   external_shape.clear();
 
-  expect(tensor.shape() == expected_shape,
+  expect(std::ranges::equal(tensor.shape(), expected_shape),
          "tensor must own an independent copy of its shape");
 }
 
