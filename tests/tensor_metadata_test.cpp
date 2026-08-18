@@ -129,11 +129,11 @@ void test_shape_ownership() {
 }
 
 void test_shape_product_overflow() {
-  const Tensor::size_type max_value =
+  const Tensor::size_type max_size =
       std::numeric_limits<Tensor::size_type>::max();
 
   try {
-    static_cast<void>(Tensor({max_value, 2}));
+    static_cast<void>(Tensor({max_size, 2}));
   } catch (const std::overflow_error&) {
     return;
   } catch (...) {

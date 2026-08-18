@@ -15,3 +15,9 @@ add_executable(nn_tensor_access_test tensor_access_test.cpp)
 target_link_libraries(nn_tensor_access_test PRIVATE nn nn_warnings nn_sanitizers)
 
 add_test(NAME tensor.access COMMAND nn_tensor_access_test)
+
+add_executable(nn_tensor_creation_test tensor_creation_test.cpp)
+
+target_link_libraries(nn_tensor_creation_test PRIVATE nn nn_warnings nn_sanitizers)
+
+add_test(NAME tensor.creation COMMAND nn_tensor_creation_test)

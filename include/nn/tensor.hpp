@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <limits>
 #include <span>
@@ -36,6 +37,12 @@ class Tensor {
     }
 
     storage_.resize(running_stride);
+  }
+
+  [[nodiscard]] static Tensor full(shape_type shape, const value_type& value) {
+    Tensor tensor(std::move(shape));
+    std::ranges::fill(tensor.storage_, value);
+    return tensor;
   }
 
   [[nodiscard]] size_type rank() const noexcept { return shape_.size(); }
