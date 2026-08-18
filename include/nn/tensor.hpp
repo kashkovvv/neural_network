@@ -19,24 +19,9 @@ class Tensor {
   using strides_type = std::vector<size_type>;
   using storage_type = std::vector<value_type>;
 
-  explicit Tensor(shape_type shape)
-      : shape_(std::move(shape)), strides_(shape_.size()) {
-    size_type running_stride = 1;
-
-    for (size_type remaining_axes = shape_.size(); remaining_axes != 0;
-         --remaining_axes) {
-      const size_type axis = remaining_axes - 1;
-      const size_type extent = shape_[axis];
-
-      strides_[axis] = running_stride;
-      running_stride = checked_multiply(running_stride, extent);
-    }
-
-    if (running_stride > storage_.max_size()) {
-      throw std::length_error("tensor size exceeds storage max_size");
-    }
-
-    storage_.resize(running_stride);
+  explicit Tensor(shape_type shape) : shape_(std::move(shape)) {
+    const size_type element_count = initialize_layout();
+    storage_.resize(element_count);
   }
 
   [[nodiscard]] static Tensor full(shape_type shape, const value_type& value) {
@@ -53,6 +38,10 @@ class Tensor {
     Tensor tensor(shape_type{});
     tensor.storage_.front() = std::move(value);
     return tensor;
+  }
+
+  [[nodiscard]] static Tensor from_data(shape_type shape, storage_type data) {
+    return Tensor(std::move(shape), std::move(data));
   }
 
   [[nodiscard]] size_type rank() const noexcept { return shape_.size(); }
@@ -83,6 +72,36 @@ class Tensor {
   std::span<const value_type> elements() const&& = delete;
 
  private:
+  Tensor(shape_type shape, storage_type data)
+      : shape_(std::move(shape)), storage_(std::move(data)) {
+    const size_type expected_element_count = initialize_layout();
+
+    if (expected_element_count != storage_.size()) {
+      throw std::invalid_argument("tensor data size does not match shape");
+    }
+  }
+
+  [[nodiscard]] size_type initialize_layout() {
+    strides_.resize(shape_.size());
+
+    size_type running_stride = 1;
+
+    for (size_type remaining_axes = shape_.size(); remaining_axes != 0;
+         --remaining_axes) {
+      const size_type axis = remaining_axes - 1;
+      const size_type extent = shape_[axis];
+
+      strides_[axis] = running_stride;
+      running_stride = checked_multiply(running_stride, extent);
+    }
+
+    if (running_stride > storage_.max_size()) {
+      throw std::length_error("tensor size exceeds storage max_size");
+    }
+
+    return running_stride;
+  }
+
   [[nodiscard]] static size_type checked_multiply(size_type lhs,
                                                   size_type rhs) {
     const size_type max_value = std::numeric_limits<size_type>::max();
