@@ -14,6 +14,8 @@ using Tensor = nn::Tensor<float>;
 
 static_assert(std::same_as<
               decltype(Tensor::full(Tensor::shape_type{2, 3}, 4.0f)), Tensor>);
+static_assert(
+    std::same_as<decltype(Tensor::zeros(Tensor::shape_type{2, 3})), Tensor>);
 
 void expect(bool condition, const char* message) {
   if (!condition) {
@@ -83,6 +85,50 @@ void test_full_shape_product_overflow() {
       "full shape overflow did not throw std::overflow_error");
 }
 
+void test_zeros_tensor_creation() {
+  const Tensor tensor = Tensor::zeros({2, 3});
+
+  const Tensor::shape_type expected_shape{2, 3};
+  const Tensor::strides_type expected_strides{3, 1};
+
+  expect(tensor.rank() == 2, "zeros 2x3 tensor rank must be 2");
+  expect(tensor.numel() == 6, "zeros 2x3 tensor numel must be 6");
+  expect(std::ranges::equal(tensor.shape(), expected_shape),
+         "zeros tensor shape is incorrect");
+  expect(std::ranges::equal(tensor.strides(), expected_strides),
+         "zeros tensor strides are incorrect");
+
+  for (Tensor::value_type value : tensor.elements()) {
+    expect(value == 0.0f, "zeros tensor element is not zero");
+  }
+}
+
+void test_zeros_scalar_creation() {
+  const Tensor tensor = Tensor::zeros({});
+
+  expect(tensor.rank() == 0, "zeros scalar rank must be 0");
+  expect(tensor.numel() == 1, "zeros scalar numel must be 1");
+  expect(tensor.shape().empty(), "zeros scalar shape must be empty");
+  expect(tensor.strides().empty(), "zeros scalar strides must be empty");
+  expect(tensor.elements()[0] == 0.0f, "zeros scalar element is not zero");
+}
+
+void test_zeros_zero_extent_creation() {
+  const Tensor tensor = Tensor::zeros({2, 0, 4});
+
+  const Tensor::shape_type expected_shape{2, 0, 4};
+  const Tensor::strides_type expected_strides{0, 4, 1};
+
+  expect(tensor.rank() == 3, "zeros zero-extent tensor rank must be 3");
+  expect(tensor.numel() == 0, "zeros zero-extent tensor numel must be 0");
+  expect(std::ranges::equal(tensor.shape(), expected_shape),
+         "zeros zero-extent tensor shape is incorrect");
+  expect(std::ranges::equal(tensor.strides(), expected_strides),
+         "zeros zero-extent tensor strides are incorrect");
+  expect(tensor.elements().empty(),
+         "zeros zero-extent tensor elements must be empty");
+}
+
 }  // namespace
 
 int main() {
@@ -91,6 +137,9 @@ int main() {
     test_full_scalar_creation();
     test_full_zero_extent_creation();
     test_full_shape_product_overflow();
+    test_zeros_tensor_creation();
+    test_zeros_scalar_creation();
+    test_zeros_zero_extent_creation();
   } catch (const std::exception& exception) {
     std::cerr << "FAILED: " << exception.what() << '\n';
     return EXIT_FAILURE;

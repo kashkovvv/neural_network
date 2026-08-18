@@ -45,6 +45,10 @@ class Tensor {
     return tensor;
   }
 
+  [[nodiscard]] static Tensor zeros(shape_type shape) {
+    return Tensor::full(std::move(shape), value_type{});
+  }
+
   [[nodiscard]] size_type rank() const noexcept { return shape_.size(); }
 
   [[nodiscard]] size_type numel() const noexcept { return storage_.size(); }
