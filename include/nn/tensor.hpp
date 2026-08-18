@@ -46,7 +46,13 @@ class Tensor {
   }
 
   [[nodiscard]] static Tensor zeros(shape_type shape) {
-    return Tensor::full(std::move(shape), value_type{});
+    return full(std::move(shape), value_type{});
+  }
+
+  [[nodiscard]] static Tensor scalar(value_type value) {
+    Tensor tensor(shape_type{});
+    tensor.storage_.front() = std::move(value);
+    return tensor;
   }
 
   [[nodiscard]] size_type rank() const noexcept { return shape_.size(); }

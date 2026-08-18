@@ -16,6 +16,7 @@ static_assert(std::same_as<
               decltype(Tensor::full(Tensor::shape_type{2, 3}, 4.0f)), Tensor>);
 static_assert(
     std::same_as<decltype(Tensor::zeros(Tensor::shape_type{2, 3})), Tensor>);
+static_assert(std::same_as<decltype(Tensor::scalar(-3.5f)), Tensor>);
 
 void expect(bool condition, const char* message) {
   if (!condition) {
@@ -129,6 +130,16 @@ void test_zeros_zero_extent_creation() {
          "zeros zero-extent tensor elements must be empty");
 }
 
+void test_scalar_creation() {
+  const Tensor tensor = Tensor::scalar(-3.5f);
+
+  expect(tensor.rank() == 0, "scalar tensor rank must be 0");
+  expect(tensor.numel() == 1, "scalar tensor numel must be 1");
+  expect(tensor.shape().empty(), "scalar tensor shape must be empty");
+  expect(tensor.strides().empty(), "scalar tensor strides must be empty");
+  expect(tensor.elements()[0] == -3.5f, "scalar tensor element is incorrect");
+}
+
 }  // namespace
 
 int main() {
@@ -140,6 +151,7 @@ int main() {
     test_zeros_tensor_creation();
     test_zeros_scalar_creation();
     test_zeros_zero_extent_creation();
+    test_scalar_creation();
   } catch (const std::exception& exception) {
     std::cerr << "FAILED: " << exception.what() << '\n';
     return EXIT_FAILURE;
