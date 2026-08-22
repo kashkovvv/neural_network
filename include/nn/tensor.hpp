@@ -1,12 +1,23 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
+#include <concepts>
 #include <cstddef>
 #include <limits>
 #include <span>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 #include <vector>
+
+namespace nn::detail {
+
+template <typename Type>
+concept tensor_index = std::integral<std::remove_cvref_t<Type>> &&
+                       (!std::same_as<std::remove_cvref_t<Type>, bool>);
+
+}  // namespace nn::detail
 
 namespace nn {
 
@@ -27,6 +38,7 @@ class Tensor {
   [[nodiscard]] static Tensor full(shape_type shape, const value_type& value) {
     Tensor tensor(std::move(shape));
     std::ranges::fill(tensor.storage_, value);
+
     return tensor;
   }
 
@@ -37,6 +49,7 @@ class Tensor {
   [[nodiscard]] static Tensor scalar(value_type value) {
     Tensor tensor(shape_type{});
     tensor.storage_.front() = std::move(value);
+
     return tensor;
   }
 
@@ -71,6 +84,35 @@ class Tensor {
   std::span<value_type> elements() && = delete;
   std::span<const value_type> elements() const&& = delete;
 
+  template <detail::tensor_index... IndexTypes>
+  [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
+    return storage_[compute_offset(indices...)];
+  }
+
+  template <detail::tensor_index... IndexTypes>
+  [[nodiscard]] const value_type& operator[](
+      IndexTypes... indices) const& noexcept {
+    return storage_[compute_offset(indices...)];
+  }
+
+  template <detail::tensor_index IndexType, std::size_t Extent>
+  [[nodiscard]] value_type& operator[](
+      std::span<IndexType, Extent> indices) & noexcept {
+    return storage_[compute_offset(indices)];
+  }
+
+  template <detail::tensor_index IndexType, std::size_t Extent>
+  [[nodiscard]] const value_type& operator[](
+      std::span<IndexType, Extent> indices) const& noexcept {
+    return storage_[compute_offset(indices)];
+  }
+
+  template <typename... Arguments>
+  value_type& operator[](Arguments&&...) && = delete;
+
+  template <typename... Arguments>
+  const value_type& operator[](Arguments&&...) const&& = delete;
+
  private:
   Tensor(shape_type shape, storage_type data)
       : shape_(std::move(shape)), storage_(std::move(data)) {
@@ -79,6 +121,45 @@ class Tensor {
     if (expected_element_count != storage_.size()) {
       throw std::invalid_argument("tensor data size does not match shape");
     }
+  }
+
+  template <detail::tensor_index IndexType>
+  [[nodiscard]] size_type compute_axis_offset(size_type axis,
+                                              IndexType index) const noexcept {
+    assert(axis < rank());
+    assert(std::in_range<size_type>(index));
+
+    const size_type normalized_index = static_cast<size_type>(index);
+
+    assert(normalized_index < shape_[axis]);
+
+    return normalized_index * strides_[axis];
+  }
+
+  template <detail::tensor_index... IndexTypes>
+  [[nodiscard]] size_type compute_offset(IndexTypes... indices) const noexcept {
+    assert(sizeof...(IndexTypes) == rank());
+
+    size_type axis = 0;
+    size_type offset = 0;
+
+    ((offset += compute_axis_offset(axis, indices), ++axis), ...);
+
+    return offset;
+  }
+
+  template <detail::tensor_index IndexType, std::size_t Extent>
+  [[nodiscard]] size_type compute_offset(
+      std::span<IndexType, Extent> indices) const noexcept {
+    assert(indices.size() == rank());
+
+    size_type offset = 0;
+
+    for (size_type axis = 0; axis < indices.size(); ++axis) {
+      offset += compute_axis_offset(axis, indices[axis]);
+    }
+
+    return offset;
   }
 
   [[nodiscard]] size_type initialize_layout() {
