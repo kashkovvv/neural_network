@@ -95,17 +95,31 @@ static_assert(!CanIndexWith<Tensor&&, DynamicUnsignedSpan>);
 static_assert(!CanIndexWith<const Tensor&&, DynamicUnsignedSpan>);
 
 static_assert(!CanIndexWith<Tensor&, bool>);
+static_assert(!CanIndexWith<Tensor&, char>);
+static_assert(!CanIndexWith<Tensor&, wchar_t>);
+static_assert(!CanIndexWith<Tensor&, char8_t>);
+static_assert(!CanIndexWith<Tensor&, char16_t>);
+static_assert(!CanIndexWith<Tensor&, char32_t>);
 static_assert(!CanIndexWith<Tensor&, int, bool>);
 static_assert(!CanIndexWith<Tensor&, float>);
 static_assert(!CanIndexWith<Tensor&, int, double>);
 static_assert(!CanIndexWith<Tensor&, std::span<const bool, 2>>);
+static_assert(!CanIndexWith<Tensor&, std::span<const char, 2>>);
+static_assert(!CanIndexWith<Tensor&, std::span<const wchar_t>>);
 static_assert(!CanIndexWith<Tensor&, std::span<const float>>);
 
 static_assert(!CanIndexWith<const Tensor&, bool>);
+static_assert(!CanIndexWith<const Tensor&, char>);
+static_assert(!CanIndexWith<const Tensor&, wchar_t>);
+static_assert(!CanIndexWith<const Tensor&, char8_t>);
+static_assert(!CanIndexWith<const Tensor&, char16_t>);
+static_assert(!CanIndexWith<const Tensor&, char32_t>);
 static_assert(!CanIndexWith<const Tensor&, int, bool>);
 static_assert(!CanIndexWith<const Tensor&, float>);
 static_assert(!CanIndexWith<const Tensor&, int, double>);
 static_assert(!CanIndexWith<const Tensor&, std::span<const bool, 2>>);
+static_assert(!CanIndexWith<const Tensor&, std::span<const char, 2>>);
+static_assert(!CanIndexWith<const Tensor&, std::span<const wchar_t>>);
 static_assert(!CanIndexWith<const Tensor&, std::span<const float>>);
 
 void expect(bool condition, const char* message) {

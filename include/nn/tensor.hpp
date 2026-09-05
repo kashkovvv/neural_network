@@ -15,7 +15,12 @@ namespace nn::detail {
 
 template <typename Type>
 concept tensor_index = std::integral<std::remove_cvref_t<Type>> &&
-                       (!std::same_as<std::remove_cvref_t<Type>, bool>);
+                       (!std::same_as<std::remove_cvref_t<Type>, bool>) &&
+                       (!std::same_as<std::remove_cvref_t<Type>, char>) &&
+                       (!std::same_as<std::remove_cvref_t<Type>, wchar_t>) &&
+                       (!std::same_as<std::remove_cvref_t<Type>, char8_t>) &&
+                       (!std::same_as<std::remove_cvref_t<Type>, char16_t>) &&
+                       (!std::same_as<std::remove_cvref_t<Type>, char32_t>);
 
 }  // namespace nn::detail
 
@@ -113,6 +118,33 @@ class Tensor {
   template <typename... Arguments>
   const value_type& operator[](Arguments&&...) const&& = delete;
 
+  template <detail::tensor_index... IndexTypes>
+  [[nodiscard]] value_type& at(IndexTypes... indices) & {
+    return storage_[compute_offset_checked(indices...)];
+  }
+
+  template <detail::tensor_index... IndexTypes>
+  [[nodiscard]] const value_type& at(IndexTypes... indices) const& {
+    return storage_[compute_offset_checked(indices...)];
+  }
+
+  template <detail::tensor_index IndexType, std::size_t Extent>
+  [[nodiscard]] value_type& at(std::span<IndexType, Extent> indices) & {
+    return storage_[compute_offset_checked(indices)];
+  }
+
+  template <detail::tensor_index IndexType, std::size_t Extent>
+  [[nodiscard]] const value_type& at(
+      std::span<IndexType, Extent> indices) const& {
+    return storage_[compute_offset_checked(indices)];
+  }
+
+  template <typename... Arguments>
+  value_type& at(Arguments&&...) && = delete;
+
+  template <typename... Arguments>
+  const value_type& at(Arguments&&...) const&& = delete;
+
  private:
   Tensor(shape_type shape, storage_type data)
       : shape_(std::move(shape)), storage_(std::move(data)) {
@@ -157,6 +189,54 @@ class Tensor {
 
     for (size_type axis = 0; axis < indices.size(); ++axis) {
       offset += compute_axis_offset(axis, indices[axis]);
+    }
+
+    return offset;
+  }
+
+  template <detail::tensor_index IndexType>
+  [[nodiscard]] size_type compute_axis_offset_checked(size_type axis,
+                                                      IndexType index) const {
+    assert(axis < rank());
+
+    if (!std::in_range<size_type>(index)) {
+      throw std::out_of_range("tensor index is out of bounds");
+    }
+
+    const size_type normalized_index = static_cast<size_type>(index);
+
+    if (normalized_index >= shape_[axis]) {
+      throw std::out_of_range("tensor index is out of bounds");
+    }
+
+    return normalized_index * strides_[axis];
+  }
+
+  template <detail::tensor_index... IndexTypes>
+  [[nodiscard]] size_type compute_offset_checked(IndexTypes... indices) const {
+    if (sizeof...(IndexTypes) != rank()) {
+      throw std::invalid_argument("tensor index count does not match rank");
+    }
+
+    size_type axis = 0;
+    size_type offset = 0;
+
+    ((offset += compute_axis_offset_checked(axis, indices), ++axis), ...);
+
+    return offset;
+  }
+
+  template <detail::tensor_index IndexType, std::size_t Extent>
+  [[nodiscard]] size_type compute_offset_checked(
+      std::span<IndexType, Extent> indices) const {
+    if (indices.size() != rank()) {
+      throw std::invalid_argument("tensor index count does not match rank");
+    }
+
+    size_type offset = 0;
+
+    for (size_type axis = 0; axis < indices.size(); ++axis) {
+      offset += compute_axis_offset_checked(axis, indices[axis]);
     }
 
     return offset;

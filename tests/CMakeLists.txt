@@ -17,3 +17,7 @@ add_test(NAME tensor.creation COMMAND nn_tensor_creation_test)
 add_executable(nn_tensor_indexing_test tensor_indexing_test.cpp)
 target_link_libraries(nn_tensor_indexing_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.indexing COMMAND nn_tensor_indexing_test)
+
+add_executable(nn_tensor_at_test tensor_at_test.cpp)
+target_link_libraries(nn_tensor_at_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.at COMMAND nn_tensor_at_test)
