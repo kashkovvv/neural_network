@@ -30,6 +30,10 @@ add_executable(nn_tensor_move_semantics_test tensor_move_semantics_test.cpp)
 target_link_libraries(nn_tensor_move_semantics_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.move_semantics COMMAND nn_tensor_move_semantics_test)
 
+add_executable(nn_tensor_unary_minus_test tensor_unary_minus_test.cpp)
+target_link_libraries(nn_tensor_unary_minus_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.unary_minus COMMAND nn_tensor_unary_minus_test)
+
 add_executable(nn_tensor_add_assign_test tensor_add_assign_test.cpp)
 target_link_libraries(nn_tensor_add_assign_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.add_assign COMMAND nn_tensor_add_assign_test)

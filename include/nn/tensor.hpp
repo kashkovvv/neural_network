@@ -258,6 +258,9 @@ class Tensor {
 
  private:
   template <std::floating_point U>
+  friend Tensor<U> operator-(Tensor<U>);
+
+  template <std::floating_point U>
   friend Tensor<U> operator-(typename Tensor<U>::value_type, Tensor<U>);
 
   Tensor(shape_type shape, storage_type data)
@@ -411,6 +414,16 @@ class Tensor {
   strides_type strides_;
   storage_type storage_;
 };
+
+template <std::floating_point T>
+[[nodiscard]] Tensor<T> operator-(Tensor<T> tensor) {
+  tensor.validate_elementwise_state();
+
+  std::ranges::transform(tensor.storage_, tensor.storage_.begin(),
+                         std::negate<>{});
+
+  return tensor;
+}
 
 template <std::floating_point T>
 [[nodiscard]] Tensor<T> operator+(Tensor<T> lhs, const Tensor<T>& rhs) {
