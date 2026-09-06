@@ -40,6 +40,47 @@ class Tensor {
     storage_.resize(element_count);
   }
 
+  Tensor(const Tensor&) = default;
+
+  Tensor(Tensor&& other) noexcept
+      : shape_(std::move(other.shape_)),
+        strides_(std::move(other.strides_)),
+        storage_(std::move(other.storage_)) {
+    other.shape_.clear();
+    other.strides_.clear();
+    other.storage_.clear();
+  }
+
+  Tensor& operator=(const Tensor& other) {
+    if (this == &other) {
+      return *this;
+    }
+
+    Tensor temporary(other);
+
+    std::swap(shape_, temporary.shape_);
+    std::swap(strides_, temporary.strides_);
+    std::swap(storage_, temporary.storage_);
+
+    return *this;
+  }
+
+  Tensor& operator=(Tensor&& other) noexcept {
+    if (this == &other) {
+      return *this;
+    }
+
+    shape_ = std::move(other.shape_);
+    strides_ = std::move(other.strides_);
+    storage_ = std::move(other.storage_);
+
+    other.shape_.clear();
+    other.strides_.clear();
+    other.storage_.clear();
+
+    return *this;
+  }
+
   [[nodiscard]] static Tensor full(shape_type shape, const value_type& value) {
     Tensor tensor(std::move(shape));
     std::ranges::fill(tensor.storage_, value);
@@ -120,23 +161,23 @@ class Tensor {
 
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& at(IndexTypes... indices) & {
-    return storage_[compute_offset_checked(indices...)];
+    return storage_.at(compute_offset_checked(indices...));
   }
 
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] const value_type& at(IndexTypes... indices) const& {
-    return storage_[compute_offset_checked(indices...)];
+    return storage_.at(compute_offset_checked(indices...));
   }
 
   template <detail::tensor_index IndexType, std::size_t Extent>
   [[nodiscard]] value_type& at(std::span<IndexType, Extent> indices) & {
-    return storage_[compute_offset_checked(indices)];
+    return storage_.at(compute_offset_checked(indices));
   }
 
   template <detail::tensor_index IndexType, std::size_t Extent>
   [[nodiscard]] const value_type& at(
       std::span<IndexType, Extent> indices) const& {
-    return storage_[compute_offset_checked(indices)];
+    return storage_.at(compute_offset_checked(indices));
   }
 
   template <typename... Arguments>
