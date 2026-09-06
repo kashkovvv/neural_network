@@ -210,6 +210,17 @@ class Tensor {
     return *this;
   }
 
+  Tensor& operator*=(const Tensor& other) &
+    requires std::floating_point<T>
+  {
+    validate_elementwise_compatibility(other);
+
+    std::ranges::transform(storage_, other.storage_, storage_.begin(),
+                           std::multiplies<>{});
+
+    return *this;
+  }
+
  private:
   Tensor(shape_type shape, storage_type data)
       : shape_(std::move(shape)), storage_(std::move(data)) {
