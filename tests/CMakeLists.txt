@@ -29,3 +29,7 @@ add_test(NAME tensor.copy_semantics COMMAND nn_tensor_copy_semantics_test)
 add_executable(nn_tensor_move_semantics_test tensor_move_semantics_test.cpp)
 target_link_libraries(nn_tensor_move_semantics_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.move_semantics COMMAND nn_tensor_move_semantics_test)
+
+add_executable(nn_tensor_add_assign_test tensor_add_assign_test.cpp)
+target_link_libraries(nn_tensor_add_assign_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.add_assign COMMAND nn_tensor_add_assign_test)

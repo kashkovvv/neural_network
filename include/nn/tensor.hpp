@@ -4,6 +4,7 @@
 #include <cassert>
 #include <concepts>
 #include <cstddef>
+#include <functional>
 #include <limits>
 #include <span>
 #include <stdexcept>
@@ -186,6 +187,23 @@ class Tensor {
   template <typename... Arguments>
   const value_type& at(Arguments&&...) const&& = delete;
 
+  Tensor& operator+=(const Tensor& other) &
+    requires std::floating_point<T>
+  {
+    if (is_empty_sentinel() || other.is_empty_sentinel()) {
+      throw std::invalid_argument("one of the operands is an empty sentinel");
+    }
+
+    if (shape_ != other.shape_) {
+      throw std::invalid_argument("operands have different shapes");
+    }
+
+    std::ranges::transform(storage_, other.storage_, storage_.begin(),
+                           std::plus<>{});
+
+    return *this;
+  }
+
  private:
   Tensor(shape_type shape, storage_type data)
       : shape_(std::move(shape)), storage_(std::move(data)) {
@@ -194,6 +212,10 @@ class Tensor {
     if (expected_element_count != storage_.size()) {
       throw std::invalid_argument("tensor data size does not match shape");
     }
+  }
+
+  [[nodiscard]] bool is_empty_sentinel() const noexcept {
+    return shape_.empty() && strides_.empty() && storage_.empty();
   }
 
   template <detail::tensor_index IndexType>
