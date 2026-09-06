@@ -17,6 +17,17 @@ static_assert(std::is_nothrow_move_constructible_v<Tensor>);
 static_assert(std::is_nothrow_move_assignable_v<Tensor>);
 static_assert(std::swappable<Tensor>);
 static_assert(std::is_nothrow_swappable_v<Tensor>);
+static_assert(std::same_as<
+              decltype(std::declval<Tensor&>().swap(std::declval<Tensor&>())),
+              void>);
+static_assert(noexcept(
+    std::declval<Tensor&>().swap(std::declval<Tensor&>())));
+static_assert(std::same_as<
+              decltype(nn::swap(std::declval<Tensor&>(),
+                                std::declval<Tensor&>())),
+              void>);
+static_assert(noexcept(
+    nn::swap(std::declval<Tensor&>(), std::declval<Tensor&>())));
 
 void expect(bool condition, const char* message) {
   if (!condition) {
@@ -143,6 +154,11 @@ void test_moved_from_sentinel_can_be_copied_and_moved() {
 void test_swap_exchanges_complete_states() {
   Tensor left = Tensor::scalar(-1.0F);
   Tensor right = Tensor::from_data({2}, {3.0F, 4.0F});
+  const auto existing_right_shape = right.shape();
+  const auto existing_right_strides = right.strides();
+  const auto existing_right_elements = right.elements();
+  Tensor::value_type* const existing_right_data = right.elements().data();
+  Tensor::value_type& existing_right_reference = right.elements()[1];
 
   using std::swap;
   swap(left, right);
@@ -157,10 +173,81 @@ void test_swap_exchanges_complete_states() {
          "swap did not transfer strides to the left tensor");
   expect(std::ranges::equal(left.elements(), expected_left_elements),
          "swap did not transfer elements to the left tensor");
+  expect(std::ranges::equal(existing_right_shape, expected_left_shape),
+         "swap invalidated an existing shape view");
+  expect(std::ranges::equal(existing_right_strides, expected_left_strides),
+         "swap invalidated an existing strides view");
+  expect(std::ranges::equal(existing_right_elements, expected_left_elements),
+         "swap invalidated an existing elements view");
+  expect(left.elements().data() == existing_right_data,
+         "swap changed the transferred storage address");
+  expect(&left.elements()[1] == &existing_right_reference,
+         "swap invalidated an existing element reference");
 
   expect(right.rank() == 0, "swap did not transfer scalar rank");
   expect(right.numel() == 1, "swap did not transfer scalar numel");
   expect(right.at() == -1.0F, "swap did not transfer scalar value");
+}
+
+void test_member_swap_exchanges_complete_states() {
+  Tensor left = Tensor::from_data({2}, {1.0F, 2.0F});
+  Tensor right = Tensor::from_data({1, 2}, {3.0F, 4.0F});
+
+  left.swap(right);
+
+  const Tensor::shape_type expected_left_shape{1, 2};
+  const Tensor::strides_type expected_left_strides{2, 1};
+  const Tensor::storage_type expected_left_elements{3.0F, 4.0F};
+  const Tensor::shape_type expected_right_shape{2};
+  const Tensor::strides_type expected_right_strides{1};
+  const Tensor::storage_type expected_right_elements{1.0F, 2.0F};
+
+  expect(std::ranges::equal(left.shape(), expected_left_shape),
+         "member swap did not transfer shape to the left tensor");
+  expect(std::ranges::equal(left.strides(), expected_left_strides),
+         "member swap did not transfer strides to the left tensor");
+  expect(std::ranges::equal(left.elements(), expected_left_elements),
+         "member swap did not transfer elements to the left tensor");
+  expect(std::ranges::equal(right.shape(), expected_right_shape),
+         "member swap did not transfer shape to the right tensor");
+  expect(std::ranges::equal(right.strides(), expected_right_strides),
+         "member swap did not transfer strides to the right tensor");
+  expect(std::ranges::equal(right.elements(), expected_right_elements),
+         "member swap did not transfer elements to the right tensor");
+}
+
+void test_self_swap_preserves_state() {
+  Tensor tensor = Tensor::from_data({2, 2}, {1.0F, 2.0F, 3.0F, 4.0F});
+  const Tensor::shape_type expected_shape(tensor.shape().begin(),
+                                           tensor.shape().end());
+  const Tensor::strides_type expected_strides(tensor.strides().begin(),
+                                               tensor.strides().end());
+  const Tensor::storage_type expected_elements(tensor.elements().begin(),
+                                                tensor.elements().end());
+
+  tensor.swap(tensor);
+
+  expect(std::ranges::equal(tensor.shape(), expected_shape),
+         "self-swap changed shape");
+  expect(std::ranges::equal(tensor.strides(), expected_strides),
+         "self-swap changed strides");
+  expect(std::ranges::equal(tensor.elements(), expected_elements),
+         "self-swap changed elements");
+}
+
+void test_swap_exchanges_empty_sentinel() {
+  Tensor source = Tensor::from_data({2}, {1.0F, 2.0F});
+  Tensor destination(std::move(source));
+  static_cast<void>(destination);
+  Tensor tensor = Tensor::scalar(7.0F);
+
+  source.swap(tensor);
+
+  expect(source.rank() == 0, "sentinel swap produced an incorrect rank");
+  expect(source.numel() == 1,
+         "sentinel swap produced an incorrect element count");
+  expect(source.at() == 7.0F, "sentinel swap produced an incorrect value");
+  expect_empty_sentinel(tensor);
 }
 
 }  // namespace
@@ -173,6 +260,9 @@ int main() {
     test_moved_from_sentinel_can_be_reassigned();
     test_moved_from_sentinel_can_be_copied_and_moved();
     test_swap_exchanges_complete_states();
+    test_member_swap_exchanges_complete_states();
+    test_self_swap_preserves_state();
+    test_swap_exchanges_empty_sentinel();
   } catch (const std::exception& exception) {
     std::cerr << "FAILED: " << exception.what() << '\n';
     return EXIT_FAILURE;

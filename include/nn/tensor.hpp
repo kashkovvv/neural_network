@@ -60,9 +60,7 @@ class Tensor {
 
     Tensor temporary(other);
 
-    std::swap(shape_, temporary.shape_);
-    std::swap(strides_, temporary.strides_);
-    std::swap(storage_, temporary.storage_);
+    swap(temporary);
 
     return *this;
   }
@@ -81,6 +79,12 @@ class Tensor {
     other.storage_.clear();
 
     return *this;
+  }
+
+  void swap(Tensor& other) noexcept {
+    std::swap(shape_, other.shape_);
+    std::swap(strides_, other.strides_);
+    std::swap(storage_, other.storage_);
   }
 
   [[nodiscard]] static Tensor full(shape_type shape, const value_type& value) {
@@ -470,6 +474,11 @@ class Tensor {
   strides_type strides_;
   storage_type storage_;
 };
+
+template <typename T>
+void swap(Tensor<T>& lhs, Tensor<T>& rhs) noexcept {
+  lhs.swap(rhs);
+}
 
 template <std::floating_point T>
 [[nodiscard]] Tensor<T> operator+(Tensor<T> tensor) {
