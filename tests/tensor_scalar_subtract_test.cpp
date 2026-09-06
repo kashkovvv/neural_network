@@ -27,13 +27,23 @@ concept CanCallFreeSubtract = requires {
 static_assert(std::same_as<decltype(std::declval<const Tensor&>() -
                                     std::declval<float>()),
                            Tensor>);
+static_assert(std::same_as<decltype(std::declval<float>() -
+                                    std::declval<const Tensor&>()),
+                           Tensor>);
 static_assert(CanCallFreeSubtract<const Tensor&, float>);
+static_assert(CanCallFreeSubtract<float, const Tensor&>);
 static_assert(CanSubtract<DoubleTensor&, double>);
+static_assert(CanSubtract<double, DoubleTensor&>);
 static_assert(CanSubtract<Tensor&, int>);
+static_assert(CanSubtract<int, Tensor&>);
 static_assert(CanSubtract<Tensor&&, float>);
+static_assert(CanSubtract<float, Tensor&&>);
 static_assert(!CanSubtract<IntegerTensor&, int>);
+static_assert(!CanSubtract<int, IntegerTensor&>);
 static_assert(!noexcept(std::declval<const Tensor&>() -
                         std::declval<float>()));
+static_assert(!noexcept(std::declval<float>() -
+                        std::declval<const Tensor&>()));
 
 void expect(bool condition, const char* message) {
   if (!condition) {
@@ -91,6 +101,24 @@ void test_scalar_subtract_computes_result_without_changing_lvalue() {
          "scalar subtraction changed the tensor lvalue");
 }
 
+void test_value_first_subtract_computes_result_without_changing_lvalue() {
+  const Tensor tensor =
+      Tensor::from_data({2, 2}, {1.0F, -2.0F, 3.5F, 0.0F});
+  const Tensor::shape_type expected_shape{2, 2};
+  const Tensor::strides_type expected_strides{2, 1};
+  const Tensor::storage_type expected_elements{1.0F, 4.0F, -1.5F, 2.0F};
+  const Tensor::storage_type expected_source{1.0F, -2.0F, 3.5F, 0.0F};
+
+  const Tensor result = 2.0F - tensor;
+
+  expect_state(result, expected_shape, expected_strides, expected_elements,
+               "value-first subtraction changed shape",
+               "value-first subtraction changed strides",
+               "value-first subtraction computed incorrect elements");
+  expect(std::ranges::equal(tensor.elements(), expected_source),
+         "value-first subtraction changed the tensor lvalue");
+}
+
 void test_scalar_subtract_accepts_convertible_number() {
   const Tensor tensor = Tensor::from_data({2}, {1.5F, -2.5F});
   const Tensor::storage_type expected_elements{-0.5F, -4.5F};
@@ -99,6 +127,16 @@ void test_scalar_subtract_accepts_convertible_number() {
 
   expect(std::ranges::equal(result.elements(), expected_elements),
          "scalar subtraction converted a number incorrectly");
+}
+
+void test_value_first_subtract_accepts_convertible_number() {
+  const Tensor tensor = Tensor::from_data({2}, {1.5F, -2.5F});
+  const Tensor::storage_type expected_elements{0.5F, 4.5F};
+
+  const Tensor result = 2 - tensor;
+
+  expect(std::ranges::equal(result.elements(), expected_elements),
+         "value-first subtraction converted a number incorrectly");
 }
 
 void test_scalar_subtract_supports_rank_zero_and_zero_extent_tensors() {
@@ -121,6 +159,26 @@ void test_scalar_subtract_supports_rank_zero_and_zero_extent_tensors() {
                "zero-extent scalar subtraction created elements");
 }
 
+void test_value_first_subtract_supports_rank_zero_and_zero_extent_tensors() {
+  const Tensor rank_zero_result = 5.0F - Tensor::scalar(2.5F);
+
+  expect(rank_zero_result.rank() == 0,
+         "value-first subtraction changed rank-zero tensor rank");
+  expect(rank_zero_result.numel() == 1,
+         "value-first subtraction changed rank-zero tensor numel");
+  expect(rank_zero_result.at() == 2.5F,
+         "value-first subtraction computed an incorrect rank-zero value");
+
+  const Tensor zero_extent_result = 3.0F - Tensor({2, 0, 4});
+  const Tensor::shape_type expected_shape{2, 0, 4};
+  const Tensor::strides_type expected_strides{0, 4, 1};
+
+  expect_state(zero_extent_result, expected_shape, expected_strides, {},
+               "zero-extent value-first subtraction changed shape",
+               "zero-extent value-first subtraction changed strides",
+               "zero-extent value-first subtraction created elements");
+}
+
 void test_scalar_subtract_reuses_rvalue_tensor_storage() {
   Tensor source = Tensor::from_data({3}, {1.0F, 2.0F, 3.0F});
   const Tensor::value_type* const original_storage = source.elements().data();
@@ -132,6 +190,20 @@ void test_scalar_subtract_reuses_rvalue_tensor_storage() {
          "scalar subtraction did not reuse rvalue storage");
   expect(std::ranges::equal(result.elements(), expected_elements),
          "rvalue scalar subtraction computed incorrect elements");
+  expect_empty_sentinel(source);
+}
+
+void test_value_first_subtract_reuses_rvalue_tensor_storage() {
+  Tensor source = Tensor::from_data({3}, {1.0F, 2.0F, 3.0F});
+  const Tensor::value_type* const original_storage = source.elements().data();
+  const Tensor::storage_type expected_elements{3.0F, 2.0F, 1.0F};
+
+  const Tensor result = 4.0F - std::move(source);
+
+  expect(result.elements().data() == original_storage,
+         "value-first subtraction did not reuse rvalue storage");
+  expect(std::ranges::equal(result.elements(), expected_elements),
+         "value-first rvalue subtraction computed incorrect elements");
   expect_empty_sentinel(source);
 }
 
@@ -147,15 +219,32 @@ void test_scalar_subtract_rejects_moved_from_sentinel() {
   expect_empty_sentinel(source);
 }
 
+void test_value_first_subtract_rejects_moved_from_sentinel() {
+  Tensor source = Tensor::from_data({1}, {1.0F});
+  Tensor owner(std::move(source));
+  static_cast<void>(owner);
+
+  expect_throws<std::invalid_argument>(
+      [&source] { static_cast<void>(2.0F - source); },
+      "value-first subtraction accepted an empty sentinel",
+      "value-first sentinel subtraction produced the wrong exception type");
+  expect_empty_sentinel(source);
+}
+
 }  // namespace
 
 int main() {
   try {
     test_scalar_subtract_computes_result_without_changing_lvalue();
+    test_value_first_subtract_computes_result_without_changing_lvalue();
     test_scalar_subtract_accepts_convertible_number();
+    test_value_first_subtract_accepts_convertible_number();
     test_scalar_subtract_supports_rank_zero_and_zero_extent_tensors();
+    test_value_first_subtract_supports_rank_zero_and_zero_extent_tensors();
     test_scalar_subtract_reuses_rvalue_tensor_storage();
+    test_value_first_subtract_reuses_rvalue_tensor_storage();
     test_scalar_subtract_rejects_moved_from_sentinel();
+    test_value_first_subtract_rejects_moved_from_sentinel();
   } catch (const std::exception& exception) {
     std::cerr << "FAILED: " << exception.what() << '\n';
     return EXIT_FAILURE;

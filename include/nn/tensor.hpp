@@ -257,6 +257,9 @@ class Tensor {
   }
 
  private:
+  template <std::floating_point U>
+  friend Tensor<U> operator-(typename Tensor<U>::value_type, Tensor<U>);
+
   Tensor(shape_type shape, storage_type data)
       : shape_(std::move(shape)), storage_(std::move(data)) {
     const size_type expected_element_count = initialize_layout();
@@ -443,6 +446,19 @@ template <std::floating_point T>
 [[nodiscard]] Tensor<T> operator-(Tensor<T> tensor,
                                   typename Tensor<T>::value_type value) {
   tensor -= value;
+
+  return tensor;
+}
+
+template <std::floating_point T>
+[[nodiscard]] Tensor<T> operator-(typename Tensor<T>::value_type value,
+                                  Tensor<T> tensor) {
+  tensor.validate_elementwise_state();
+
+  std::ranges::transform(tensor.storage_, tensor.storage_.begin(),
+                         [value](typename Tensor<T>::value_type element) {
+                           return value - element;
+                         });
 
   return tensor;
 }
