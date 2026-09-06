@@ -14,14 +14,14 @@
 
 namespace nn::detail {
 
-template <typename Type>
-concept tensor_index = std::integral<std::remove_cvref_t<Type>> &&
-                       (!std::same_as<std::remove_cvref_t<Type>, bool>) &&
-                       (!std::same_as<std::remove_cvref_t<Type>, char>) &&
-                       (!std::same_as<std::remove_cvref_t<Type>, wchar_t>) &&
-                       (!std::same_as<std::remove_cvref_t<Type>, char8_t>) &&
-                       (!std::same_as<std::remove_cvref_t<Type>, char16_t>) &&
-                       (!std::same_as<std::remove_cvref_t<Type>, char32_t>);
+template <typename IndexType>
+concept tensor_index = std::integral<std::remove_cvref_t<IndexType>> &&
+                       (!std::same_as<std::remove_cvref_t<IndexType>, bool>) &&
+                       (!std::same_as<std::remove_cvref_t<IndexType>, char>) &&
+                       (!std::same_as<std::remove_cvref_t<IndexType>, wchar_t>) &&
+                       (!std::same_as<std::remove_cvref_t<IndexType>, char8_t>) &&
+                       (!std::same_as<std::remove_cvref_t<IndexType>, char16_t>) &&
+                       (!std::same_as<std::remove_cvref_t<IndexType>, char32_t>);
 
 }  // namespace nn::detail
 
@@ -341,5 +341,12 @@ class Tensor {
   strides_type strides_;
   storage_type storage_;
 };
+
+template <std::floating_point T>
+[[nodiscard]] Tensor<T> operator+(Tensor<T> lhs, const Tensor<T>& rhs) {
+  lhs += rhs;
+
+  return lhs;
+}
 
 }  // namespace nn

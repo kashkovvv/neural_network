@@ -37,24 +37,26 @@ static_assert(noexcept(std::declval<const Tensor&>().strides()));
 static_assert(noexcept(std::declval<Tensor&>().elements()));
 static_assert(noexcept(std::declval<const Tensor&>().elements()));
 
-template <typename U>
-concept CanCallShape = requires { std::declval<U>().shape(); };
+template <typename TensorType>
+concept CanCallShape = requires { std::declval<TensorType>().shape(); };
 
 static_assert(CanCallShape<Tensor&>);
 static_assert(CanCallShape<const Tensor&>);
 static_assert(!CanCallShape<Tensor&&>);
 static_assert(!CanCallShape<const Tensor&&>);
 
-template <typename U>
-concept CanCallStrides = requires { std::declval<U>().strides(); };
+template <typename TensorType>
+concept CanCallStrides = requires { std::declval<TensorType>().strides(); };
 
 static_assert(CanCallStrides<Tensor&>);
 static_assert(CanCallStrides<const Tensor&>);
 static_assert(!CanCallStrides<Tensor&&>);
 static_assert(!CanCallStrides<const Tensor&&>);
 
-template <typename U>
-concept CanCallElements = requires { std::declval<U>().elements(); };
+template <typename TensorType>
+concept CanCallElements = requires {
+  std::declval<TensorType>().elements();
+};
 
 static_assert(CanCallElements<Tensor&>);
 static_assert(CanCallElements<const Tensor&>);
