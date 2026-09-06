@@ -245,6 +245,18 @@ class Tensor {
     return *this;
   }
 
+  Tensor& operator*=(value_type value) &
+    requires std::floating_point<T>
+  {
+    validate_elementwise_state();
+
+    std::ranges::transform(
+        storage_, storage_.begin(),
+        [value](value_type element) { return element * value; });
+
+    return *this;
+  }
+
   Tensor& operator/=(const Tensor& other) &
     requires std::floating_point<T>
   {
@@ -491,6 +503,22 @@ template <std::floating_point T>
   lhs *= rhs;
 
   return lhs;
+}
+
+template <std::floating_point T>
+[[nodiscard]] Tensor<T> operator*(Tensor<T> tensor,
+                                  typename Tensor<T>::value_type value) {
+  tensor *= value;
+
+  return tensor;
+}
+
+template <std::floating_point T>
+[[nodiscard]] Tensor<T> operator*(typename Tensor<T>::value_type value,
+                                  Tensor<T> tensor) {
+  tensor *= value;
+
+  return tensor;
 }
 
 template <std::floating_point T>

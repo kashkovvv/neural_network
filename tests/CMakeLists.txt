@@ -74,9 +74,17 @@ add_executable(nn_tensor_multiply_assign_test tensor_multiply_assign_test.cpp)
 target_link_libraries(nn_tensor_multiply_assign_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.mul_assign COMMAND nn_tensor_multiply_assign_test)
 
+add_executable(nn_tensor_scalar_multiply_assign_test tensor_scalar_multiply_assign_test.cpp)
+target_link_libraries(nn_tensor_scalar_multiply_assign_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.scalar_mul_assign COMMAND nn_tensor_scalar_multiply_assign_test)
+
 add_executable(nn_tensor_multiply_test tensor_multiply_test.cpp)
 target_link_libraries(nn_tensor_multiply_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.mul COMMAND nn_tensor_multiply_test)
+
+add_executable(nn_tensor_scalar_multiply_test tensor_scalar_multiply_test.cpp)
+target_link_libraries(nn_tensor_scalar_multiply_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.scalar_mul COMMAND nn_tensor_scalar_multiply_test)
 
 add_executable(nn_tensor_divide_assign_test tensor_divide_assign_test.cpp)
 target_link_libraries(nn_tensor_divide_assign_test PRIVATE nn nn_warnings nn_sanitizers)
