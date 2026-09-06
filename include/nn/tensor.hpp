@@ -365,4 +365,11 @@ template <std::floating_point T>
   return lhs;
 }
 
+template <std::floating_point T>
+[[nodiscard]] Tensor<T> operator-(Tensor<T> lhs, const Tensor<T>& rhs) {
+  lhs -= rhs;
+
+  return lhs;
+}
+
 }  // namespace nn
