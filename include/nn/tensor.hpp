@@ -405,6 +405,22 @@ template <std::floating_point T>
 }
 
 template <std::floating_point T>
+[[nodiscard]] Tensor<T> operator+(Tensor<T> tensor,
+                                  typename Tensor<T>::value_type value) {
+  tensor += value;
+
+  return tensor;
+}
+
+template <std::floating_point T>
+[[nodiscard]] Tensor<T> operator+(typename Tensor<T>::value_type value,
+                                  Tensor<T> tensor) {
+  tensor += value;
+
+  return tensor;
+}
+
+template <std::floating_point T>
 [[nodiscard]] Tensor<T> operator-(Tensor<T> lhs, const Tensor<T>& rhs) {
   lhs -= rhs;
 
