@@ -199,6 +199,18 @@ class Tensor {
     return *this;
   }
 
+  Tensor& operator+=(value_type value) &
+    requires std::floating_point<T>
+  {
+    validate_elementwise_state();
+
+    std::ranges::transform(
+        storage_, storage_.begin(),
+        [value](value_type element) { return element + value; });
+
+    return *this;
+  }
+
   Tensor& operator-=(const Tensor& other) &
     requires std::floating_point<T>
   {
@@ -246,10 +258,15 @@ class Tensor {
     return shape_.empty() && strides_.empty() && storage_.empty();
   }
 
-  void validate_elementwise_compatibility(const Tensor& other) const {
-    if (is_empty_sentinel() || other.is_empty_sentinel()) {
-      throw std::invalid_argument("one of the operands is an empty sentinel");
+  void validate_elementwise_state() const {
+    if (is_empty_sentinel()) {
+      throw std::invalid_argument("tensor is an empty sentinel");
     }
+  }
+
+  void validate_elementwise_compatibility(const Tensor& other) const {
+    validate_elementwise_state();
+    other.validate_elementwise_state();
 
     if (shape_ != other.shape_) {
       throw std::invalid_argument("operands have different shapes");
