@@ -101,3 +101,7 @@ add_test(NAME tensor.div COMMAND nn_tensor_divide_test)
 add_executable(nn_tensor_scalar_divide_test tensor_scalar_divide_test.cpp)
 target_link_libraries(nn_tensor_scalar_divide_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.scalar_div COMMAND nn_tensor_scalar_divide_test)
+
+add_executable(nn_tensor_reshape_test tensor_reshape_test.cpp)
+target_link_libraries(nn_tensor_reshape_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.reshape COMMAND nn_tensor_reshape_test)

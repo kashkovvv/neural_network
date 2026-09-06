@@ -132,6 +132,20 @@ class Tensor {
   std::span<value_type> elements() && = delete;
   std::span<const value_type> elements() const&& = delete;
 
+  void reshape(shape_type new_shape) & {
+    validate_not_empty_sentinel();
+
+    Layout layout = compute_layout(new_shape);
+
+    if (layout.element_count != storage_.size()) {
+      throw std::invalid_argument(
+          "new shape element count does not match tensor numel");
+    }
+
+    shape_.swap(new_shape);
+    strides_.swap(layout.strides);
+  }
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
     return storage_[compute_offset(indices...)];
@@ -202,7 +216,7 @@ class Tensor {
   Tensor& operator+=(value_type value) &
     requires std::floating_point<T>
   {
-    validate_elementwise_state();
+    validate_not_empty_sentinel();
 
     std::ranges::transform(
         storage_, storage_.begin(),
@@ -225,7 +239,7 @@ class Tensor {
   Tensor& operator-=(value_type value) &
     requires std::floating_point<T>
   {
-    validate_elementwise_state();
+    validate_not_empty_sentinel();
 
     std::ranges::transform(
         storage_, storage_.begin(),
@@ -248,7 +262,7 @@ class Tensor {
   Tensor& operator*=(value_type value) &
     requires std::floating_point<T>
   {
-    validate_elementwise_state();
+    validate_not_empty_sentinel();
 
     std::ranges::transform(
         storage_, storage_.begin(),
@@ -271,7 +285,7 @@ class Tensor {
   Tensor& operator/=(value_type value) &
     requires std::floating_point<T>
   {
-    validate_elementwise_state();
+    validate_not_empty_sentinel();
 
     std::ranges::transform(
         storage_, storage_.begin(),
@@ -293,6 +307,11 @@ class Tensor {
   template <std::floating_point U>
   friend Tensor<U> operator/(typename Tensor<U>::value_type, Tensor<U>);
 
+  struct Layout {
+    strides_type strides;
+    size_type element_count;
+  };
+
   Tensor(shape_type shape, storage_type data)
       : shape_(std::move(shape)), storage_(std::move(data)) {
     const size_type expected_element_count = initialize_layout();
@@ -306,15 +325,15 @@ class Tensor {
     return shape_.empty() && strides_.empty() && storage_.empty();
   }
 
-  void validate_elementwise_state() const {
+  void validate_not_empty_sentinel() const {
     if (is_empty_sentinel()) {
       throw std::invalid_argument("tensor is an empty sentinel");
     }
   }
 
   void validate_elementwise_compatibility(const Tensor& other) const {
-    validate_elementwise_state();
-    other.validate_elementwise_state();
+    validate_not_empty_sentinel();
+    other.validate_not_empty_sentinel();
 
     if (shape_ != other.shape_) {
       throw std::invalid_argument("operands have different shapes");
@@ -408,25 +427,32 @@ class Tensor {
     return offset;
   }
 
-  [[nodiscard]] size_type initialize_layout() {
-    strides_.resize(shape_.size());
-
+  [[nodiscard]] Layout compute_layout(const shape_type& shape) const {
+    strides_type strides(shape.size());
     size_type running_stride = 1;
 
-    for (size_type remaining_axes = shape_.size(); remaining_axes != 0;
+    for (size_type remaining_axes = shape.size(); remaining_axes != 0;
          --remaining_axes) {
       const size_type axis = remaining_axes - 1;
-      const size_type extent = shape_[axis];
+      const size_type extent = shape[axis];
 
-      strides_[axis] = running_stride;
+      strides[axis] = running_stride;
       running_stride = checked_multiply(running_stride, extent);
     }
 
     if (running_stride > storage_.max_size()) {
-      throw std::length_error("tensor size exceeds storage max_size");
+      throw std::length_error("tensor numel exceeds storage max_size");
     }
 
-    return running_stride;
+    return Layout{std::move(strides), running_stride};
+  }
+
+  [[nodiscard]] size_type initialize_layout() {
+    Layout layout = compute_layout(shape_);
+
+    strides_.swap(layout.strides);
+
+    return layout.element_count;
   }
 
   [[nodiscard]] static size_type checked_multiply(size_type lhs,
@@ -447,14 +473,14 @@ class Tensor {
 
 template <std::floating_point T>
 [[nodiscard]] Tensor<T> operator+(Tensor<T> tensor) {
-  tensor.validate_elementwise_state();
+  tensor.validate_not_empty_sentinel();
 
   return tensor;
 }
 
 template <std::floating_point T>
 [[nodiscard]] Tensor<T> operator-(Tensor<T> tensor) {
-  tensor.validate_elementwise_state();
+  tensor.validate_not_empty_sentinel();
 
   std::ranges::transform(tensor.storage_, tensor.storage_.begin(),
                          std::negate<>{});
@@ -503,7 +529,7 @@ template <std::floating_point T>
 template <std::floating_point T>
 [[nodiscard]] Tensor<T> operator-(typename Tensor<T>::value_type value,
                                   Tensor<T> tensor) {
-  tensor.validate_elementwise_state();
+  tensor.validate_not_empty_sentinel();
 
   std::ranges::transform(tensor.storage_, tensor.storage_.begin(),
                          [value](typename Tensor<T>::value_type element) {
@@ -554,7 +580,7 @@ template <std::floating_point T>
 template <std::floating_point T>
 [[nodiscard]] Tensor<T> operator/(typename Tensor<T>::value_type value,
                                   Tensor<T> tensor) {
-  tensor.validate_elementwise_state();
+  tensor.validate_not_empty_sentinel();
 
   std::ranges::transform(tensor.storage_, tensor.storage_.begin(),
                          [value](typename Tensor<T>::value_type element) {
