@@ -15,13 +15,14 @@
 namespace nn::detail {
 
 template <typename IndexType>
-concept tensor_index = std::integral<std::remove_cvref_t<IndexType>> &&
-                       (!std::same_as<std::remove_cvref_t<IndexType>, bool>) &&
-                       (!std::same_as<std::remove_cvref_t<IndexType>, char>) &&
-                       (!std::same_as<std::remove_cvref_t<IndexType>, wchar_t>) &&
-                       (!std::same_as<std::remove_cvref_t<IndexType>, char8_t>) &&
-                       (!std::same_as<std::remove_cvref_t<IndexType>, char16_t>) &&
-                       (!std::same_as<std::remove_cvref_t<IndexType>, char32_t>);
+concept tensor_index =
+    std::integral<std::remove_cvref_t<IndexType>> &&
+    (!std::same_as<std::remove_cvref_t<IndexType>, bool>) &&
+    (!std::same_as<std::remove_cvref_t<IndexType>, char>) &&
+    (!std::same_as<std::remove_cvref_t<IndexType>, wchar_t>) &&
+    (!std::same_as<std::remove_cvref_t<IndexType>, char8_t>) &&
+    (!std::same_as<std::remove_cvref_t<IndexType>, char16_t>) &&
+    (!std::same_as<std::remove_cvref_t<IndexType>, char32_t>);
 
 }  // namespace nn::detail
 
@@ -190,16 +191,21 @@ class Tensor {
   Tensor& operator+=(const Tensor& other) &
     requires std::floating_point<T>
   {
-    if (is_empty_sentinel() || other.is_empty_sentinel()) {
-      throw std::invalid_argument("one of the operands is an empty sentinel");
-    }
-
-    if (shape_ != other.shape_) {
-      throw std::invalid_argument("operands have different shapes");
-    }
+    validate_elementwise_compatibility(other);
 
     std::ranges::transform(storage_, other.storage_, storage_.begin(),
                            std::plus<>{});
+
+    return *this;
+  }
+
+  Tensor& operator-=(const Tensor& other) &
+    requires std::floating_point<T>
+  {
+    validate_elementwise_compatibility(other);
+
+    std::ranges::transform(storage_, other.storage_, storage_.begin(),
+                           std::minus<>{});
 
     return *this;
   }
@@ -216,6 +222,16 @@ class Tensor {
 
   [[nodiscard]] bool is_empty_sentinel() const noexcept {
     return shape_.empty() && strides_.empty() && storage_.empty();
+  }
+
+  void validate_elementwise_compatibility(const Tensor& other) const {
+    if (is_empty_sentinel() || other.is_empty_sentinel()) {
+      throw std::invalid_argument("one of the operands is an empty sentinel");
+    }
+
+    if (shape_ != other.shape_) {
+      throw std::invalid_argument("operands have different shapes");
+    }
   }
 
   template <detail::tensor_index IndexType>
