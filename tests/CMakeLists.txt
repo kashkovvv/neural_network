@@ -50,6 +50,10 @@ add_executable(nn_tensor_subtract_assign_test tensor_subtract_assign_test.cpp)
 target_link_libraries(nn_tensor_subtract_assign_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.sub_assign COMMAND nn_tensor_subtract_assign_test)
 
+add_executable(nn_tensor_scalar_subtract_assign_test tensor_scalar_subtract_assign_test.cpp)
+target_link_libraries(nn_tensor_scalar_subtract_assign_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.scalar_sub_assign COMMAND nn_tensor_scalar_subtract_assign_test)
+
 add_executable(nn_tensor_subtract_test tensor_subtract_test.cpp)
 target_link_libraries(nn_tensor_subtract_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.sub COMMAND nn_tensor_subtract_test)

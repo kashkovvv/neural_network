@@ -222,6 +222,18 @@ class Tensor {
     return *this;
   }
 
+  Tensor& operator-=(value_type value) &
+    requires std::floating_point<T>
+  {
+    validate_elementwise_state();
+
+    std::ranges::transform(
+        storage_, storage_.begin(),
+        [value](value_type element) { return element - value; });
+
+    return *this;
+  }
+
   Tensor& operator*=(const Tensor& other) &
     requires std::floating_point<T>
   {
