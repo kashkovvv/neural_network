@@ -34,6 +34,7 @@ class Tensor {
   using value_type = T;
   using size_type = std::size_t;
   using shape_type = std::vector<size_type>;
+  using axes_type = std::vector<size_type>;
   using strides_type = std::vector<size_type>;
   using storage_type = std::vector<value_type>;
 
@@ -48,9 +49,7 @@ class Tensor {
       : shape_(std::move(other.shape_)),
         strides_(std::move(other.strides_)),
         storage_(std::move(other.storage_)) {
-    other.shape_.clear();
-    other.strides_.clear();
-    other.storage_.clear();
+    other.reset_to_empty_sentinel();
   }
 
   Tensor& operator=(const Tensor& other) {
@@ -74,9 +73,7 @@ class Tensor {
     strides_ = std::move(other.strides_);
     storage_ = std::move(other.storage_);
 
-    other.shape_.clear();
-    other.strides_.clear();
-    other.storage_.clear();
+    other.reset_to_empty_sentinel();
 
     return *this;
   }
@@ -136,18 +133,43 @@ class Tensor {
   std::span<value_type> elements() && = delete;
   std::span<const value_type> elements() const&& = delete;
 
-  void reshape(shape_type new_shape) & {
+  void reshape(shape_type target_shape) & {
     validate_not_empty_sentinel();
 
-    Layout layout = compute_layout(new_shape);
+    Layout target_layout = compute_layout(target_shape);
 
-    if (layout.element_count != storage_.size()) {
+    if (target_layout.element_count != numel()) {
       throw std::invalid_argument(
           "new shape element count does not match tensor numel");
     }
 
-    shape_.swap(new_shape);
-    strides_.swap(layout.strides);
+    shape_.swap(target_shape);
+    strides_.swap(target_layout.strides);
+  }
+
+  [[nodiscard]] Tensor permute(const axes_type& axes) const&
+    requires std::copy_constructible<T>
+  {
+    validate_not_empty_sentinel();
+
+    shape_type result_shape = compute_permuted_shape(axes);
+    Layout result_layout = compute_layout(result_shape);
+
+    assert(result_layout.element_count == numel());
+
+    storage_type result_storage;
+    result_storage.reserve(result_layout.element_count);
+
+    for (size_type result_offset = 0;
+         result_offset < result_layout.element_count; ++result_offset) {
+      const size_type source_offset = map_result_offset_to_source(
+          result_offset, axes, result_layout.strides);
+
+      result_storage.emplace_back(storage_[source_offset]);
+    }
+
+    return Tensor(std::move(result_shape), std::move(result_layout),
+                  std::move(result_storage));
   }
 
   template <detail::tensor_index... IndexTypes>
@@ -325,8 +347,22 @@ class Tensor {
     }
   }
 
+  Tensor(shape_type shape, Layout precomputed_layout, storage_type data)
+      : shape_(std::move(shape)),
+        strides_(std::move(precomputed_layout.strides)),
+        storage_(std::move(data)) {
+    assert(shape_.size() == strides_.size());
+    assert(precomputed_layout.element_count == storage_.size());
+  }
+
   [[nodiscard]] bool is_empty_sentinel() const noexcept {
     return shape_.empty() && strides_.empty() && storage_.empty();
+  }
+
+  void reset_to_empty_sentinel() noexcept {
+    shape_.clear();
+    strides_.clear();
+    storage_.clear();
   }
 
   void validate_not_empty_sentinel() const {
@@ -342,6 +378,70 @@ class Tensor {
     if (shape_ != other.shape_) {
       throw std::invalid_argument("operands have different shapes");
     }
+  }
+
+  [[nodiscard]] shape_type compute_permuted_shape(const axes_type& axes) const {
+    const size_type axis_count = rank();
+
+    if (axes.size() != axis_count) {
+      throw std::invalid_argument(
+          "permutation axis count does not match tensor rank");
+    }
+
+    shape_type result_shape;
+    result_shape.reserve(axis_count);
+
+    std::vector<bool> seen_source_axes(axis_count, false);
+
+    for (size_type result_axis = 0; result_axis < axis_count; ++result_axis) {
+      const size_type source_axis = axes[result_axis];
+
+      if (source_axis >= axis_count) {
+        throw std::out_of_range("permutation axis is out of range");
+      }
+
+      if (seen_source_axes[source_axis]) {
+        throw std::invalid_argument("permutation axes contain duplicates");
+      }
+
+      seen_source_axes[source_axis] = true;
+      result_shape.push_back(shape_[source_axis]);
+    }
+
+    return result_shape;
+  }
+
+  [[nodiscard]] size_type map_result_offset_to_source(
+      size_type result_offset, const axes_type& axes,
+      const strides_type& result_strides) const noexcept {
+    const size_type axis_count = rank();
+
+    assert(axes.size() == axis_count);
+    assert(result_strides.size() == axis_count);
+    assert(result_offset < numel());
+
+    size_type remaining_result_offset = result_offset;
+    size_type source_offset = 0;
+
+    for (size_type result_axis = 0; result_axis < axis_count; ++result_axis) {
+      const size_type result_stride = result_strides[result_axis];
+
+      assert(result_stride != 0);
+
+      const size_type result_index = remaining_result_offset / result_stride;
+      const size_type source_axis = axes[result_axis];
+
+      assert(source_axis < axis_count);
+      assert(result_index < shape_[source_axis]);
+
+      remaining_result_offset %= result_stride;
+      source_offset += result_index * strides_[source_axis];
+    }
+
+    assert(remaining_result_offset == 0);
+    assert(source_offset < numel());
+
+    return source_offset;
   }
 
   template <detail::tensor_index IndexType>
@@ -452,11 +552,11 @@ class Tensor {
   }
 
   [[nodiscard]] size_type initialize_layout() {
-    Layout layout = compute_layout(shape_);
+    Layout computed_layout = compute_layout(shape_);
 
-    strides_.swap(layout.strides);
+    strides_.swap(computed_layout.strides);
 
-    return layout.element_count;
+    return computed_layout.element_count;
   }
 
   [[nodiscard]] static size_type checked_multiply(size_type lhs,
