@@ -172,6 +172,26 @@ class Tensor {
                   std::move(result_storage));
   }
 
+  [[nodiscard]] Tensor matrix_transpose() const&
+    requires std::copy_constructible<T>
+  {
+    validate_not_empty_sentinel();
+
+    const size_type axis_count = rank();
+
+    if (axis_count < 2) {
+      throw std::invalid_argument(
+          "matrix transpose requires tensor rank of at least 2");
+    }
+
+    axes_type axes(axis_count);
+
+    std::ranges::iota(axes, size_type{0});
+    std::swap(axes[axis_count - 2], axes[axis_count - 1]);
+
+    return permute(axes);
+  }
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
     return storage_[compute_offset(indices...)];

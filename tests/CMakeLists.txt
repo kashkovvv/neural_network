@@ -109,3 +109,7 @@ add_test(NAME tensor.reshape COMMAND nn_tensor_reshape_test)
 add_executable(nn_tensor_permute_test tensor_permute_test.cpp)
 target_link_libraries(nn_tensor_permute_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.permute COMMAND nn_tensor_permute_test)
+
+add_executable(nn_tensor_matrix_transpose_test tensor_matrix_transpose_test.cpp)
+target_link_libraries(nn_tensor_matrix_transpose_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.matrix_transpose COMMAND nn_tensor_matrix_transpose_test)
