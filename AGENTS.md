@@ -106,6 +106,8 @@ ctest --test-dir build --output-on-failure
 обычное native floating-point поведение. Right-aligned broadcasting правого
 tensor-операнда в неизменную форму левого реализован для всех tensor–tensor
 compound assignments: `operator+=`, `operator-=`, `operator*=` и `operator/=`.
+Симметричный broadcasting бинарного `operator+` реализован через общий private
+kernel `apply_elementwise`.
 Обычное число поддерживается отдельными scalar-перегрузками; rank-zero `Tensor`
 обрабатывается общим broadcasting-механизмом, а не специальной арифметической
 перегрузкой.
@@ -288,8 +290,11 @@ Roadmap задаёт долгосрочное направление проек�
 broadcasting для `operator+=`, `operator-=`, `operator*=` и `operator/=`
 реализован через общий private kernel `apply_elementwise_inplace`.
 
-Следующий шаг — отдельно спроектировать симметричный binary kernel: текущая
-модель бинарного оператора через копию левого operand не умеет создавать
-результат, форма которого шире формы слева. До завершения симметричных `+`, `-`,
-`*`, `/` broadcasting нельзя считать законченным и нельзя отмечать общий пункт
-README.
+Симметричный бинарный `operator+` реализован через consuming private kernel
+`apply_elementwise(...) &&`: он переиспользует storage левого operand, когда
+форма результата совпадает с левой, и создаёт новый contiguous row-major
+результат, когда левый operand требуется расширить.
+
+Следующими по одному подключай к тому же kernel `operator-`, `operator*` и
+`operator/`, сохраняя порядок операндов. До их завершения broadcasting нельзя
+считать законченным и нельзя отмечать общий пункт README.

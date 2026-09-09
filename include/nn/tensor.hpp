@@ -336,6 +336,9 @@ class Tensor {
   friend Tensor<U> operator-(Tensor<U>);
 
   template <std::floating_point U>
+  friend Tensor<U> operator+(Tensor<U>, const Tensor<U>&);
+
+  template <std::floating_point U>
   friend Tensor<U> operator-(typename Tensor<U>::value_type, Tensor<U>);
 
   template <std::floating_point U>
@@ -420,6 +423,61 @@ class Tensor {
     }
   }
 
+  template <typename BinaryOperation>
+  [[nodiscard]] Tensor apply_elementwise(const Tensor& other,
+                                         BinaryOperation operation) && {
+    validate_not_empty_sentinel();
+    other.validate_not_empty_sentinel();
+
+    shape_type result_shape = compute_broadcast_shape(other.shape_);
+
+    if (result_shape == shape_) {
+      apply_elementwise_inplace(other, operation);
+
+      return std::move(*this);
+    }
+
+    Layout result_layout = compute_layout(result_shape);
+    const strides_type left_broadcast_strides =
+        compute_broadcast_strides(result_shape);
+    const strides_type right_broadcast_strides =
+        other.compute_broadcast_strides(result_shape);
+    const size_type axis_count = result_shape.size();
+
+    storage_type result_storage;
+    result_storage.reserve(result_layout.element_count);
+
+    for (size_type result_offset = 0;
+         result_offset < result_layout.element_count; ++result_offset) {
+      size_type remaining_result_offset = result_offset;
+      size_type left_offset = 0;
+      size_type right_offset = 0;
+
+      for (size_type result_axis = 0; result_axis < axis_count; ++result_axis) {
+        const size_type result_stride = result_layout.strides[result_axis];
+
+        assert(result_stride != 0);
+
+        const size_type result_index = remaining_result_offset / result_stride;
+
+        remaining_result_offset %= result_stride;
+
+        left_offset += result_index * left_broadcast_strides[result_axis];
+        right_offset += result_index * right_broadcast_strides[result_axis];
+      }
+
+      assert(remaining_result_offset == 0);
+      assert(left_offset < numel());
+      assert(right_offset < other.numel());
+
+      result_storage.emplace_back(
+          operation(storage_[left_offset], other.storage_[right_offset]));
+    }
+
+    return Tensor(std::move(result_shape), std::move(result_layout),
+                  std::move(result_storage));
+  }
+
   [[nodiscard]] strides_type compute_broadcast_strides(
       const shape_type& target_shape) const {
     const size_type source_rank = rank();
@@ -452,6 +510,49 @@ class Tensor {
     }
 
     return broadcast_strides;
+  }
+
+  [[nodiscard]] shape_type compute_broadcast_shape(
+      const shape_type& right_shape) const {
+    const size_type left_rank = rank();
+    const size_type right_rank = right_shape.size();
+    const size_type result_rank = std::max(left_rank, right_rank);
+
+    const size_type left_rank_difference = result_rank - left_rank;
+    const size_type right_rank_difference = result_rank - right_rank;
+
+    shape_type result_shape(result_rank);
+
+    for (size_type result_axis = 0; result_axis < result_rank; ++result_axis) {
+      size_type left_extent = 1;
+      size_type right_extent = 1;
+      size_type result_extent = 0;
+
+      if (result_axis >= left_rank_difference) {
+        const size_type left_axis = result_axis - left_rank_difference;
+        left_extent = shape_[left_axis];
+      }
+
+      if (result_axis >= right_rank_difference) {
+        const size_type right_axis = result_axis - right_rank_difference;
+        right_extent = right_shape[right_axis];
+      }
+
+      if (left_extent == right_extent) {
+        result_extent = left_extent;
+      } else if (left_extent == 1) {
+        result_extent = right_extent;
+      } else if (right_extent == 1) {
+        result_extent = left_extent;
+      } else {
+        throw std::invalid_argument(
+            "tensor shapes are not broadcast-compatible");
+      }
+
+      result_shape[result_axis] = result_extent;
+    }
+
+    return result_shape;
   }
 
   [[nodiscard]] shape_type compute_permuted_shape(const axes_type& axes) const {
@@ -673,9 +774,7 @@ template <std::floating_point T>
 
 template <std::floating_point T>
 [[nodiscard]] Tensor<T> operator+(Tensor<T> lhs, const Tensor<T>& rhs) {
-  lhs += rhs;
-
-  return lhs;
+  return std::move(lhs).apply_elementwise(rhs, std::plus<>{});
 }
 
 template <std::floating_point T>
