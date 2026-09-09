@@ -131,7 +131,7 @@ Roadmap задаёт долгосрочное направление проек�
 
 - [x] Реализовать `Tensor`
 - [x] Реализовать базовые операции над тензорами
-- [ ] Реализовать reshape, transpose и broadcasting
+- [x] Реализовать reshape, transpose и broadcasting
 - [ ] Реализовать reductions
 - [ ] Реализовать векторные и матричные операции
 - [ ] Реализовать matrix multiplication
@@ -296,5 +296,13 @@ broadcasting для `operator+=`, `operator-=`, `operator*=` и `operator/=`
 и создаёт новый contiguous row-major результат, когда левый operand требуется
 расширить.
 
-Следующий шаг — сверить завершённый broadcasting-подэтап с общим пунктом README
-и после подтверждения пользователя перейти к reductions.
+Этап reshape, transpose и broadcasting завершён и отмечен в README.
+
+Текущий этап — reductions. Reduction всех элементов `sum()` реализован: он
+возвращает rank-zero `Tensor<T>`, сохраняет тип `T`, даёт additive identity для
+пустого корректного тензора и отклоняет moved-from sentinel. Порядок
+floating-point накопления не является публичной гарантией; pairwise или
+compensated summation рассматривается позднее на этапе численной устойчивости.
+
+Следующий шаг — отдельно согласовать axis reduction `sum(...)` и семантику
+`keepdims`. `mean`, `min` и `max` реализуй последующими небольшими шагами.

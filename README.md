@@ -11,7 +11,7 @@
 
 - [x] Реализовать `Tensor`
 - [x] Реализовать базовые операции над тензорами
-- [ ] Реализовать reshape, transpose и broadcasting
+- [x] Реализовать reshape, transpose и broadcasting
 - [ ] Реализовать reductions
 - [ ] Реализовать векторные и матричные операции
 - [ ] Реализовать matrix multiplication

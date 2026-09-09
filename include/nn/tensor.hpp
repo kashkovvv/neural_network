@@ -192,6 +192,15 @@ class Tensor {
     return permute(axes);
   }
 
+  [[nodiscard]] Tensor sum() const&
+    requires std::floating_point<T>
+  {
+    validate_not_empty_sentinel();
+
+    return scalar(
+        std::ranges::fold_left(storage_, value_type{}, std::plus<>{}));
+  }
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
     return storage_[compute_offset(indices...)];
