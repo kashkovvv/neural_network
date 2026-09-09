@@ -291,10 +291,7 @@ class Tensor {
   Tensor& operator*=(const Tensor& other) &
     requires std::floating_point<T>
   {
-    validate_elementwise_compatibility(other);
-
-    std::ranges::transform(storage_, other.storage_, storage_.begin(),
-                           std::multiplies<>{});
+    apply_elementwise_inplace(other, std::multiplies<>{});
 
     return *this;
   }
@@ -314,10 +311,7 @@ class Tensor {
   Tensor& operator/=(const Tensor& other) &
     requires std::floating_point<T>
   {
-    validate_elementwise_compatibility(other);
-
-    std::ranges::transform(storage_, other.storage_, storage_.begin(),
-                           std::divides<>{});
+    apply_elementwise_inplace(other, std::divides<>{});
 
     return *this;
   }
@@ -382,15 +376,6 @@ class Tensor {
   void validate_not_empty_sentinel() const {
     if (is_empty_sentinel()) {
       throw std::invalid_argument("tensor is an empty sentinel");
-    }
-  }
-
-  void validate_elementwise_compatibility(const Tensor& other) const {
-    validate_not_empty_sentinel();
-    other.validate_not_empty_sentinel();
-
-    if (shape_ != other.shape_) {
-      throw std::invalid_argument("operands have different shapes");
     }
   }
 
