@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <exception>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -102,6 +103,67 @@ void test_multiply_computes_elementwise_without_changing_lvalues() {
          "multiplication changed the right lvalue elements");
 }
 
+void test_multiply_broadcasts_either_lower_rank_operand() {
+  const Tensor vector = Tensor::from_data({3}, {10.0F, 20.0F, 30.0F});
+  const Tensor matrix =
+      Tensor::from_data({2, 3}, {1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F});
+  const Tensor::shape_type expected_shape{2, 3};
+  const Tensor::strides_type expected_strides{3, 1};
+  const Tensor::storage_type expected_elements{10.0F, 40.0F, 90.0F,
+                                                40.0F, 100.0F, 180.0F};
+
+  const Tensor matrix_times_vector = matrix * vector;
+  const Tensor vector_times_matrix = vector * matrix;
+
+  expect_state(matrix_times_vector, expected_shape, expected_strides,
+               expected_elements,
+               "right broadcast changed the multiplication result shape",
+               "right broadcast produced incorrect multiplication strides",
+               "right broadcast produced incorrect multiplication elements");
+  expect_state(vector_times_matrix, expected_shape, expected_strides,
+               expected_elements,
+               "left broadcast changed the multiplication result shape",
+               "left broadcast produced incorrect multiplication strides",
+               "left broadcast produced incorrect multiplication elements");
+}
+
+void test_multiply_broadcasts_singleton_axes_in_both_operands() {
+  const Tensor left =
+      Tensor::from_data({2, 1, 3}, {1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F});
+  const Tensor right = Tensor::from_data({1, 2, 1}, {2.0F, 3.0F});
+  const Tensor::shape_type expected_shape{2, 2, 3};
+  const Tensor::strides_type expected_strides{6, 3, 1};
+  const Tensor::storage_type expected_elements{
+      2.0F, 4.0F, 6.0F, 3.0F, 6.0F, 9.0F,
+      8.0F, 10.0F, 12.0F, 12.0F, 15.0F, 18.0F};
+
+  const Tensor result = left * right;
+
+  expect_state(result, expected_shape, expected_strides, expected_elements,
+               "singleton broadcast produced an incorrect multiplication "
+               "shape",
+               "singleton broadcast produced incorrect multiplication "
+               "strides",
+               "singleton broadcast produced incorrect multiplication "
+               "elements");
+}
+
+void test_multiply_broadcasts_rank_zero_tensor_from_either_side() {
+  const Tensor scalar = Tensor::scalar(2.0F);
+  const Tensor matrix =
+      Tensor::from_data({2, 2}, {1.0F, 2.0F, 3.0F, 4.0F});
+  const Tensor::storage_type expected_elements{2.0F, 4.0F, 6.0F, 8.0F};
+
+  const Tensor scalar_times_matrix = scalar * matrix;
+  const Tensor matrix_times_scalar = matrix * scalar;
+
+  expect(std::ranges::equal(scalar_times_matrix.elements(), expected_elements),
+         "left rank-zero multiplication broadcast produced incorrect elements");
+  expect(std::ranges::equal(matrix_times_scalar.elements(), expected_elements),
+         "right rank-zero multiplication broadcast produced incorrect "
+         "elements");
+}
+
 void test_multiply_supports_scalars_and_zero_extent_tensors() {
   const Tensor scalar_result = Tensor::scalar(2.5F) * Tensor::scalar(-2.0F);
 
@@ -118,6 +180,29 @@ void test_multiply_supports_scalars_and_zero_extent_tensors() {
                "zero-extent multiplication changed shape",
                "zero-extent multiplication produced incorrect strides",
                "zero-extent multiplication created elements");
+}
+
+void test_multiply_broadcasts_zero_extent_axes() {
+  const Tensor zero_extent({2, 0, 3});
+  const Tensor row = Tensor::from_data({1, 3}, {1.0F, 2.0F, 3.0F});
+  const Tensor singleton_axis =
+      Tensor::from_data({2, 1, 3}, {1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F});
+  const Tensor::shape_type expected_shape{2, 0, 3};
+  const Tensor::strides_type expected_strides{0, 3, 1};
+
+  const Tensor unchanged_shape_result = zero_extent * row;
+  const Tensor expanded_left_result = singleton_axis * zero_extent;
+
+  expect_state(unchanged_shape_result, expected_shape, expected_strides, {},
+               "zero-extent broadcast produced an incorrect multiplication "
+               "shape",
+               "zero-extent broadcast produced incorrect multiplication "
+               "strides",
+               "zero-extent broadcast created multiplication elements");
+  expect_state(expanded_left_result, expected_shape, expected_strides, {},
+               "zero-extent broadcast did not expand multiplication shape",
+               "expanded zero-extent multiplication has incorrect strides",
+               "expanded zero-extent multiplication contains elements");
 }
 
 void test_multiply_supports_aliased_lvalues_without_changing_the_source() {
@@ -149,11 +234,46 @@ void test_multiply_reuses_rvalue_left_storage_and_consumes_it() {
   expect_empty_sentinel(left);
 }
 
+void test_multiply_reuses_rvalue_left_storage_when_right_is_broadcast() {
+  Tensor left =
+      Tensor::from_data({2, 3}, {1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F});
+  const Tensor right = Tensor::from_data({3}, {10.0F, 20.0F, 30.0F});
+  const Tensor::value_type* const original_storage = left.elements().data();
+  const Tensor::storage_type expected_elements{10.0F, 40.0F, 90.0F,
+                                                40.0F, 100.0F, 180.0F};
+
+  const Tensor result = std::move(left) * right;
+
+  expect(result.elements().data() == original_storage,
+         "broadcast multiplication did not reuse rvalue left storage");
+  expect(std::ranges::equal(result.elements(), expected_elements),
+         "broadcast multiplication with an rvalue left computed incorrect "
+         "elements");
+  expect_empty_sentinel(left);
+}
+
+void test_multiply_consumes_rvalue_left_when_broadcast_expands_it() {
+  Tensor left = Tensor::from_data({3}, {10.0F, 20.0F, 30.0F});
+  const Tensor right =
+      Tensor::from_data({2, 3}, {1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F});
+  const Tensor::storage_type expected_elements{10.0F, 40.0F, 90.0F,
+                                                40.0F, 100.0F, 180.0F};
+
+  const Tensor result = std::move(left) * right;
+
+  expect(std::ranges::equal(result.elements(), expected_elements),
+         "expanded rvalue multiplication computed incorrect elements");
+  expect_empty_sentinel(left);
+}
+
 void test_multiply_does_not_consume_rvalue_right() {
-  const Tensor left = Tensor::from_data({2}, {2.0F, 3.0F});
-  Tensor right = Tensor::from_data({2}, {4.0F, 5.0F});
-  const Tensor::storage_type expected_result{8.0F, 15.0F};
-  const Tensor::storage_type expected_right{4.0F, 5.0F};
+  const Tensor left = Tensor::from_data({3}, {10.0F, 20.0F, 30.0F});
+  Tensor right =
+      Tensor::from_data({2, 3}, {1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F});
+  const Tensor::storage_type expected_result{10.0F, 40.0F, 90.0F,
+                                              40.0F, 100.0F, 180.0F};
+  const Tensor::storage_type expected_right{1.0F, 2.0F, 3.0F,
+                                             4.0F, 5.0F, 6.0F};
 
   const Tensor result = left * std::move(right);
 
@@ -163,7 +283,7 @@ void test_multiply_does_not_consume_rvalue_right() {
          "multiplication consumed the rvalue right operand");
 }
 
-void test_multiply_rejects_different_shapes_without_changing_lvalues() {
+void test_multiply_rejects_incompatible_shapes_without_changing_lvalues() {
   const Tensor left =
       Tensor::from_data({2, 3}, {1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F});
   const Tensor right =
@@ -184,6 +304,30 @@ void test_multiply_rejects_different_shapes_without_changing_lvalues() {
          "failed multiplication changed the left lvalue elements");
   expect(std::ranges::equal(right.elements(), expected_right),
          "failed multiplication changed the right lvalue elements");
+
+  const Tensor zero_extent({2, 0, 3});
+  const Tensor incompatible_zero_extent({2, 2, 3});
+
+  expect_throws<std::invalid_argument>(
+      [&zero_extent, &incompatible_zero_extent] {
+        static_cast<void>(zero_extent * incompatible_zero_extent);
+      },
+      "multiplication accepted incompatible zero and non-singleton extents",
+      "multiplication with incompatible zero extents produced the wrong "
+      "exception type");
+}
+
+void test_multiply_rejects_overflowing_broadcast_result_shape() {
+  const Tensor::size_type max_extent =
+      std::numeric_limits<Tensor::size_type>::max();
+  const Tensor left({0, max_extent, 1});
+  const Tensor right({0, 1, 2});
+
+  expect_throws<std::overflow_error>(
+      [&left, &right] { static_cast<void>(left * right); },
+      "multiplication accepted a broadcast result with overflowing strides",
+      "multiplication with an overflowing result shape produced the wrong "
+      "exception type");
 }
 
 void test_failed_multiply_consumes_rvalue_left() {
@@ -231,11 +375,18 @@ void test_multiply_rejects_moved_from_sentinels() {
 int main() {
   try {
     test_multiply_computes_elementwise_without_changing_lvalues();
+    test_multiply_broadcasts_either_lower_rank_operand();
+    test_multiply_broadcasts_singleton_axes_in_both_operands();
+    test_multiply_broadcasts_rank_zero_tensor_from_either_side();
     test_multiply_supports_scalars_and_zero_extent_tensors();
+    test_multiply_broadcasts_zero_extent_axes();
     test_multiply_supports_aliased_lvalues_without_changing_the_source();
     test_multiply_reuses_rvalue_left_storage_and_consumes_it();
+    test_multiply_reuses_rvalue_left_storage_when_right_is_broadcast();
+    test_multiply_consumes_rvalue_left_when_broadcast_expands_it();
     test_multiply_does_not_consume_rvalue_right();
-    test_multiply_rejects_different_shapes_without_changing_lvalues();
+    test_multiply_rejects_incompatible_shapes_without_changing_lvalues();
+    test_multiply_rejects_overflowing_broadcast_result_shape();
     test_failed_multiply_consumes_rvalue_left();
     test_multiply_rejects_moved_from_sentinels();
   } catch (const std::exception& exception) {

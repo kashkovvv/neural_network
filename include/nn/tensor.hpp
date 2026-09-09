@@ -339,7 +339,16 @@ class Tensor {
   friend Tensor<U> operator+(Tensor<U>, const Tensor<U>&);
 
   template <std::floating_point U>
+  friend Tensor<U> operator-(Tensor<U>, const Tensor<U>&);
+
+  template <std::floating_point U>
   friend Tensor<U> operator-(typename Tensor<U>::value_type, Tensor<U>);
+
+  template <std::floating_point U>
+  friend Tensor<U> operator*(Tensor<U>, const Tensor<U>&);
+
+  template <std::floating_point U>
+  friend Tensor<U> operator/(Tensor<U>, const Tensor<U>&);
 
   template <std::floating_point U>
   friend Tensor<U> operator/(typename Tensor<U>::value_type, Tensor<U>);
@@ -795,9 +804,7 @@ template <std::floating_point T>
 
 template <std::floating_point T>
 [[nodiscard]] Tensor<T> operator-(Tensor<T> lhs, const Tensor<T>& rhs) {
-  lhs -= rhs;
-
-  return lhs;
+  return std::move(lhs).apply_elementwise(rhs, std::minus<>{});
 }
 
 template <std::floating_point T>
@@ -823,9 +830,7 @@ template <std::floating_point T>
 
 template <std::floating_point T>
 [[nodiscard]] Tensor<T> operator*(Tensor<T> lhs, const Tensor<T>& rhs) {
-  lhs *= rhs;
-
-  return lhs;
+  return std::move(lhs).apply_elementwise(rhs, std::multiplies<>{});
 }
 
 template <std::floating_point T>
@@ -846,9 +851,7 @@ template <std::floating_point T>
 
 template <std::floating_point T>
 [[nodiscard]] Tensor<T> operator/(Tensor<T> lhs, const Tensor<T>& rhs) {
-  lhs /= rhs;
-
-  return lhs;
+  return std::move(lhs).apply_elementwise(rhs, std::divides<>{});
 }
 
 template <std::floating_point T>

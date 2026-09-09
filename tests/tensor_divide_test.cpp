@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <exception>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -102,6 +103,70 @@ void test_divide_computes_elementwise_without_changing_lvalues() {
          "division changed the right lvalue elements");
 }
 
+void test_divide_broadcasts_either_lower_rank_operand_in_operand_order() {
+  const Tensor vector = Tensor::from_data({3}, {8.0F, 16.0F, 32.0F});
+  const Tensor matrix =
+      Tensor::from_data({2, 3}, {2.0F, 4.0F, 8.0F, 4.0F, 8.0F, 16.0F});
+  const Tensor::shape_type expected_shape{2, 3};
+  const Tensor::strides_type expected_strides{3, 1};
+  const Tensor::storage_type expected_matrix_divided_by_vector{
+      0.25F, 0.25F, 0.25F, 0.5F, 0.5F, 0.5F};
+  const Tensor::storage_type expected_vector_divided_by_matrix{
+      4.0F, 4.0F, 4.0F, 2.0F, 2.0F, 2.0F};
+
+  const Tensor matrix_divided_by_vector = matrix / vector;
+  const Tensor vector_divided_by_matrix = vector / matrix;
+
+  expect_state(matrix_divided_by_vector, expected_shape, expected_strides,
+               expected_matrix_divided_by_vector,
+               "right broadcast changed the division result shape",
+               "right broadcast produced incorrect division strides",
+               "right broadcast changed division operand order");
+  expect_state(vector_divided_by_matrix, expected_shape, expected_strides,
+               expected_vector_divided_by_matrix,
+               "left broadcast changed the division result shape",
+               "left broadcast produced incorrect division strides",
+               "left broadcast changed division operand order");
+}
+
+void test_divide_broadcasts_singleton_axes_in_both_operands() {
+  const Tensor left = Tensor::from_data(
+      {2, 1, 3}, {8.0F, 16.0F, 32.0F, 4.0F, 8.0F, 16.0F});
+  const Tensor right = Tensor::from_data({1, 2, 1}, {2.0F, 4.0F});
+  const Tensor::shape_type expected_shape{2, 2, 3};
+  const Tensor::strides_type expected_strides{6, 3, 1};
+  const Tensor::storage_type expected_elements{
+      4.0F, 8.0F, 16.0F, 2.0F, 4.0F, 8.0F,
+      2.0F, 4.0F, 8.0F, 1.0F, 2.0F, 4.0F};
+
+  const Tensor result = left / right;
+
+  expect_state(result, expected_shape, expected_strides, expected_elements,
+               "singleton broadcast produced an incorrect division shape",
+               "singleton broadcast produced incorrect division strides",
+               "singleton broadcast produced incorrect division elements");
+}
+
+void test_divide_broadcasts_rank_zero_tensor_from_either_side() {
+  const Tensor scalar = Tensor::scalar(8.0F);
+  const Tensor matrix =
+      Tensor::from_data({2, 2}, {2.0F, 4.0F, 8.0F, 16.0F});
+  const Tensor::storage_type expected_scalar_divided_by_matrix{4.0F, 2.0F,
+                                                                1.0F, 0.5F};
+  const Tensor::storage_type expected_matrix_divided_by_scalar{0.25F, 0.5F,
+                                                                1.0F, 2.0F};
+
+  const Tensor scalar_divided_by_matrix = scalar / matrix;
+  const Tensor matrix_divided_by_scalar = matrix / scalar;
+
+  expect(std::ranges::equal(scalar_divided_by_matrix.elements(),
+                            expected_scalar_divided_by_matrix),
+         "left rank-zero broadcast changed division operand order");
+  expect(std::ranges::equal(matrix_divided_by_scalar.elements(),
+                            expected_matrix_divided_by_scalar),
+         "right rank-zero broadcast changed division operand order");
+}
+
 void test_divide_supports_scalars_and_zero_extent_tensors() {
   const Tensor scalar_result = Tensor::scalar(7.5F) / Tensor::scalar(2.5F);
 
@@ -118,6 +183,27 @@ void test_divide_supports_scalars_and_zero_extent_tensors() {
                "zero-extent division changed shape",
                "zero-extent division produced incorrect strides",
                "zero-extent division created elements");
+}
+
+void test_divide_broadcasts_zero_extent_axes() {
+  const Tensor zero_extent({2, 0, 3});
+  const Tensor row = Tensor::from_data({1, 3}, {1.0F, 2.0F, 4.0F});
+  const Tensor singleton_axis =
+      Tensor::from_data({2, 1, 3}, {1.0F, 2.0F, 4.0F, 8.0F, 16.0F, 32.0F});
+  const Tensor::shape_type expected_shape{2, 0, 3};
+  const Tensor::strides_type expected_strides{0, 3, 1};
+
+  const Tensor unchanged_shape_result = zero_extent / row;
+  const Tensor expanded_left_result = singleton_axis / zero_extent;
+
+  expect_state(unchanged_shape_result, expected_shape, expected_strides, {},
+               "zero-extent broadcast produced an incorrect division shape",
+               "zero-extent broadcast produced incorrect division strides",
+               "zero-extent broadcast created division elements");
+  expect_state(expanded_left_result, expected_shape, expected_strides, {},
+               "zero-extent broadcast did not expand the division shape",
+               "expanded zero-extent division has incorrect strides",
+               "expanded zero-extent division contains elements");
 }
 
 void test_divide_supports_aliased_lvalues_without_changing_the_source() {
@@ -149,11 +235,45 @@ void test_divide_reuses_rvalue_left_storage_and_consumes_it() {
   expect_empty_sentinel(left);
 }
 
+void test_divide_reuses_rvalue_left_storage_when_right_is_broadcast() {
+  Tensor left =
+      Tensor::from_data({2, 3}, {2.0F, 4.0F, 8.0F, 4.0F, 8.0F, 16.0F});
+  const Tensor right = Tensor::from_data({3}, {8.0F, 16.0F, 32.0F});
+  const Tensor::value_type* const original_storage = left.elements().data();
+  const Tensor::storage_type expected_elements{0.25F, 0.25F, 0.25F,
+                                                0.5F, 0.5F, 0.5F};
+
+  const Tensor result = std::move(left) / right;
+
+  expect(result.elements().data() == original_storage,
+         "broadcast division did not reuse rvalue left storage");
+  expect(std::ranges::equal(result.elements(), expected_elements),
+         "broadcast division with an rvalue left computed incorrect elements");
+  expect_empty_sentinel(left);
+}
+
+void test_divide_consumes_rvalue_left_when_broadcast_expands_it() {
+  Tensor left = Tensor::from_data({3}, {8.0F, 16.0F, 32.0F});
+  const Tensor right =
+      Tensor::from_data({2, 3}, {2.0F, 4.0F, 8.0F, 4.0F, 8.0F, 16.0F});
+  const Tensor::storage_type expected_elements{4.0F, 4.0F, 4.0F,
+                                                2.0F, 2.0F, 2.0F};
+
+  const Tensor result = std::move(left) / right;
+
+  expect(std::ranges::equal(result.elements(), expected_elements),
+         "expanded rvalue division changed operand order");
+  expect_empty_sentinel(left);
+}
+
 void test_divide_does_not_consume_rvalue_right() {
-  const Tensor left = Tensor::from_data({2}, {8.0F, 15.0F});
-  Tensor right = Tensor::from_data({2}, {4.0F, 5.0F});
-  const Tensor::storage_type expected_result{2.0F, 3.0F};
-  const Tensor::storage_type expected_right{4.0F, 5.0F};
+  const Tensor left = Tensor::from_data({3}, {8.0F, 16.0F, 32.0F});
+  Tensor right =
+      Tensor::from_data({2, 3}, {2.0F, 4.0F, 8.0F, 4.0F, 8.0F, 16.0F});
+  const Tensor::storage_type expected_result{4.0F, 4.0F, 4.0F,
+                                              2.0F, 2.0F, 2.0F};
+  const Tensor::storage_type expected_right{2.0F, 4.0F, 8.0F,
+                                             4.0F, 8.0F, 16.0F};
 
   const Tensor result = left / std::move(right);
 
@@ -163,7 +283,7 @@ void test_divide_does_not_consume_rvalue_right() {
          "division consumed the rvalue right operand");
 }
 
-void test_divide_rejects_different_shapes_without_changing_lvalues() {
+void test_divide_rejects_incompatible_shapes_without_changing_lvalues() {
   const Tensor left =
       Tensor::from_data({2, 3}, {1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F});
   const Tensor right =
@@ -182,6 +302,30 @@ void test_divide_rejects_different_shapes_without_changing_lvalues() {
          "failed division changed the left lvalue elements");
   expect(std::ranges::equal(right.elements(), expected_right),
          "failed division changed the right lvalue elements");
+
+  const Tensor zero_extent({2, 0, 3});
+  const Tensor incompatible_zero_extent({2, 2, 3});
+
+  expect_throws<std::invalid_argument>(
+      [&zero_extent, &incompatible_zero_extent] {
+        static_cast<void>(zero_extent / incompatible_zero_extent);
+      },
+      "division accepted incompatible zero and non-singleton extents",
+      "division with incompatible zero extents produced the wrong exception "
+      "type");
+}
+
+void test_divide_rejects_overflowing_broadcast_result_shape() {
+  const Tensor::size_type max_extent =
+      std::numeric_limits<Tensor::size_type>::max();
+  const Tensor left({0, max_extent, 1});
+  const Tensor right({0, 1, 2});
+
+  expect_throws<std::overflow_error>(
+      [&left, &right] { static_cast<void>(left / right); },
+      "division accepted a broadcast result with overflowing strides",
+      "division with an overflowing result shape produced the wrong exception "
+      "type");
 }
 
 void test_failed_divide_consumes_rvalue_left() {
@@ -228,11 +372,18 @@ void test_divide_rejects_moved_from_sentinels() {
 int main() {
   try {
     test_divide_computes_elementwise_without_changing_lvalues();
+    test_divide_broadcasts_either_lower_rank_operand_in_operand_order();
+    test_divide_broadcasts_singleton_axes_in_both_operands();
+    test_divide_broadcasts_rank_zero_tensor_from_either_side();
     test_divide_supports_scalars_and_zero_extent_tensors();
+    test_divide_broadcasts_zero_extent_axes();
     test_divide_supports_aliased_lvalues_without_changing_the_source();
     test_divide_reuses_rvalue_left_storage_and_consumes_it();
+    test_divide_reuses_rvalue_left_storage_when_right_is_broadcast();
+    test_divide_consumes_rvalue_left_when_broadcast_expands_it();
     test_divide_does_not_consume_rvalue_right();
-    test_divide_rejects_different_shapes_without_changing_lvalues();
+    test_divide_rejects_incompatible_shapes_without_changing_lvalues();
+    test_divide_rejects_overflowing_broadcast_result_shape();
     test_failed_divide_consumes_rvalue_left();
     test_divide_rejects_moved_from_sentinels();
   } catch (const std::exception& exception) {
