@@ -251,10 +251,7 @@ class Tensor {
   Tensor& operator+=(const Tensor& other) &
     requires std::floating_point<T>
   {
-    validate_elementwise_compatibility(other);
-
-    std::ranges::transform(storage_, other.storage_, storage_.begin(),
-                           std::plus<>{});
+    apply_elementwise_inplace(other, std::plus<>{});
 
     return *this;
   }
@@ -398,6 +395,81 @@ class Tensor {
     if (shape_ != other.shape_) {
       throw std::invalid_argument("operands have different shapes");
     }
+  }
+
+  template <typename BinaryOperation>
+  void apply_elementwise_inplace(const Tensor& other,
+                                 BinaryOperation operation) {
+    validate_not_empty_sentinel();
+    other.validate_not_empty_sentinel();
+
+    if (shape_ == other.shape_) {
+      std::ranges::transform(storage_, other.storage_, storage_.begin(),
+                             operation);
+
+      return;
+    }
+
+    const strides_type right_broadcast_strides =
+        other.compute_broadcast_strides(shape_);
+    const size_type axis_count = rank();
+
+    for (size_type left_offset = 0; left_offset < numel(); ++left_offset) {
+      size_type remaining_left_offset = left_offset;
+      size_type right_offset = 0;
+
+      for (size_type axis = 0; axis < axis_count; ++axis) {
+        const size_type left_stride = strides_[axis];
+
+        assert(left_stride != 0);
+
+        const size_type left_index = remaining_left_offset / left_stride;
+
+        remaining_left_offset %= left_stride;
+
+        right_offset += left_index * right_broadcast_strides[axis];
+      }
+
+      assert(remaining_left_offset == 0);
+      assert(right_offset < other.numel());
+
+      storage_[left_offset] = std::invoke(operation, storage_[left_offset],
+                                          other.storage_[right_offset]);
+    }
+  }
+
+  [[nodiscard]] strides_type compute_broadcast_strides(
+      const shape_type& target_shape) const {
+    const size_type source_rank = rank();
+    const size_type target_rank = target_shape.size();
+
+    if (source_rank > target_rank) {
+      throw std::invalid_argument(
+          "target tensor rank is less than source tensor rank");
+    }
+
+    strides_type broadcast_strides(target_rank, size_type{0});
+    const size_type rank_difference = target_rank - source_rank;
+
+    for (size_type source_axis = 0; source_axis < source_rank; ++source_axis) {
+      const size_type target_axis = rank_difference + source_axis;
+      const size_type source_extent = shape_[source_axis];
+      const size_type target_extent = target_shape[target_axis];
+
+      if (source_extent == 1) {
+        continue;
+      }
+
+      if (source_extent != target_extent) {
+        throw std::invalid_argument(
+            "source tensor shape is not broadcast-compatible with target "
+            "shape");
+      }
+
+      broadcast_strides[target_axis] = strides_[source_axis];
+    }
+
+    return broadcast_strides;
   }
 
   [[nodiscard]] shape_type compute_permuted_shape(const axes_type& axes) const {
