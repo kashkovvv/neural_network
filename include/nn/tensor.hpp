@@ -271,10 +271,7 @@ class Tensor {
   Tensor& operator-=(const Tensor& other) &
     requires std::floating_point<T>
   {
-    validate_elementwise_compatibility(other);
-
-    std::ranges::transform(storage_, other.storage_, storage_.begin(),
-                           std::minus<>{});
+    apply_elementwise_inplace(other, std::minus<>{});
 
     return *this;
   }
@@ -433,8 +430,8 @@ class Tensor {
       assert(remaining_left_offset == 0);
       assert(right_offset < other.numel());
 
-      storage_[left_offset] = std::invoke(operation, storage_[left_offset],
-                                          other.storage_[right_offset]);
+      storage_[left_offset] =
+          operation(storage_[left_offset], other.storage_[right_offset]);
     }
   }
 
