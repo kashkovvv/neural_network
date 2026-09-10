@@ -2,10 +2,12 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <concepts>
 #include <cstddef>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <type_traits>
@@ -257,6 +259,23 @@ class Tensor {
     result /= static_cast<value_type>(reduction_element_count);
 
     return result;
+  }
+
+  [[nodiscard]] Tensor min() const&
+    requires std::floating_point<T>
+  {
+    validate_not_empty_sentinel();
+
+    const std::optional<value_type> minimum = std::ranges::fold_left_first(
+        storage_, [](value_type lhs, value_type rhs) {
+          return std::isnan(rhs) || rhs < lhs ? rhs : lhs;
+        });
+
+    if (!minimum.has_value()) {
+      throw std::domain_error("minimum reduction domain is empty");
+    }
+
+    return scalar(minimum.value());
   }
 
   template <detail::tensor_index... IndexTypes>

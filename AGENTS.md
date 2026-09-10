@@ -341,4 +341,19 @@ Axis reduction `mean(axes, keepdims)` реализован через сущес
 отдельными runtime- и compile-time тестами, включая zero-extent формы и защиту
 от промежуточного переполнения произведения extents.
 
-Следующий шаг — отдельно согласовать контракт `min`; `max` реализуй после него.
+Контракт `min` согласован для all-element и axis reduction. Обе перегрузки
+возвращают новый `Tensor<T>`, ограничены `std::floating_point<T>` и повторяют
+правила axes, `keepdims`, value categories и ошибок валидации `sum` и `mean`.
+Пустой список axes возвращает независимую точную копию. Если существуют
+выходные ячейки с пустым reduction domain, операция бросает
+`std::domain_error`; zero-extent результат без выходных ячеек остаётся пустым.
+Любой `NaN` в reduction domain распространяется в соответствующий результат.
+Знак нуля и payload `NaN` не являются публичными гарантиями. `min` возвращает
+только значения; индексы минимумов относятся к будущему `argmin`.
+
+All-element `min()` реализован через `std::ranges::fold_left_first`, отклоняет
+пустой reduction domain и распространяет `NaN`. Он покрыт отдельными runtime-
+и compile-time тестами.
+
+Следующий шаг — отдельно реализовать axis reduction `min(axes, keepdims)`.
+`max` реализуй после него.

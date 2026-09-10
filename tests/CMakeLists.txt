@@ -129,3 +129,7 @@ add_test(NAME tensor.mean COMMAND nn_tensor_mean_test)
 add_executable(nn_tensor_axis_mean_test tensor_axis_mean_test.cpp)
 target_link_libraries(nn_tensor_axis_mean_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.axis_mean COMMAND nn_tensor_axis_mean_test)
+
+add_executable(nn_tensor_min_test tensor_min_test.cpp)
+target_link_libraries(nn_tensor_min_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.min COMMAND nn_tensor_min_test)
