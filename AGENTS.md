@@ -304,5 +304,25 @@ broadcasting для `operator+=`, `operator-=`, `operator*=` и `operator/=`
 floating-point накопления не является публичной гарантией; pairwise или
 compensated summation рассматривается позднее на этапе численной устойчивости.
 
-Следующий шаг — отдельно согласовать axis reduction `sum(...)` и семантику
-`keepdims`. `mean`, `min` и `max` реализуй последующими небольшими шагами.
+Контракт axis reduction согласован: `sum(const axes_type& axes,
+bool keepdims = false) const&` возвращает новый `Tensor<T>`. Оси должны быть
+уникальны и находиться в диапазоне `[0, rank())`, их порядок не влияет на
+результат. Пустой список осей возвращает независимую копию. При
+`keepdims == false` сокращаемые оси удаляются, при `keepdims == true` их extents
+заменяются на `1`. Пустой reduction domain даёт additive identity `T{}` для
+каждой выходной ячейки; несокращённая zero-extent ось сохраняет пустой результат.
+Дубликаты осей дают `std::invalid_argument`, ось вне диапазона —
+`std::out_of_range`, moved-from sentinel — `std::invalid_argument`. Метод имеет
+strong exception guarantee и не является `noexcept`.
+
+Axis reduction `sum(axes, keepdims)` реализован и покрыт отдельными runtime- и
+compile-time тестами. Для пустого списка осей используется copy fast path, для
+всех осей — существующий all-element `sum()` с metadata-only `reshape` при
+`keepdims`. Общий reference kernel вычисляет координаты исходного элемента и
+соответствующее выходное смещение за линейный проход по storage.
+
+Оптимизация координатного обхода через инкрементальный multidimensional cursor
+отложена до профилирования: до измерений не усложнять reference kernel.
+
+Следующий шаг — отдельно согласовать контракт `mean`; `min` и `max` реализуй
+последующими небольшими шагами.

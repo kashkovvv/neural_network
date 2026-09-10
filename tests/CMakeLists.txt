@@ -117,3 +117,7 @@ add_test(NAME tensor.matrix_transpose COMMAND nn_tensor_matrix_transpose_test)
 add_executable(nn_tensor_sum_test tensor_sum_test.cpp)
 target_link_libraries(nn_tensor_sum_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.sum COMMAND nn_tensor_sum_test)
+
+add_executable(nn_tensor_axis_sum_test tensor_axis_sum_test.cpp)
+target_link_libraries(nn_tensor_axis_sum_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.axis_sum COMMAND nn_tensor_axis_sum_test)

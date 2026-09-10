@@ -201,6 +201,42 @@ class Tensor {
         std::ranges::fold_left(storage_, value_type{}, std::plus<>{}));
   }
 
+  [[nodiscard]] Tensor sum(const axes_type& axes, bool keepdims = false) const&
+    requires std::floating_point<T>
+  {
+    validate_not_empty_sentinel();
+
+    if (axes.empty()) {
+      return *this;
+    }
+
+    const std::vector<bool> reduction_mask = compute_reduction_mask(axes);
+
+    if (axes.size() == rank()) {
+      Tensor result = sum();
+
+      if (keepdims) {
+        result.reshape(shape_type(rank(), size_type{1}));
+      }
+
+      return result;
+    }
+
+    Tensor result(compute_reduced_shape(reduction_mask, keepdims));
+
+    for (size_type source_offset = 0; source_offset < numel();
+         ++source_offset) {
+      const size_type result_offset = compute_reduction_result_offset(
+          source_offset, reduction_mask, result.strides_, keepdims);
+
+      assert(result_offset < result.numel());
+
+      result.storage_[result_offset] += storage_[source_offset];
+    }
+
+    return result;
+  }
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
     return storage_[compute_offset(indices...)];
@@ -602,6 +638,99 @@ class Tensor {
     }
 
     return result_shape;
+  }
+
+  [[nodiscard]] std::vector<bool> compute_reduction_mask(
+      const axes_type& axes) const {
+    const size_type axis_count = rank();
+    std::vector<bool> reduction_mask(axis_count, false);
+
+    for (const size_type reduction_axis : axes) {
+      if (reduction_axis >= axis_count) {
+        throw std::out_of_range("reduction axis is out of range");
+      }
+
+      if (reduction_mask[reduction_axis]) {
+        throw std::invalid_argument("reduction axes contain duplicates");
+      }
+
+      reduction_mask[reduction_axis] = true;
+    }
+
+    return reduction_mask;
+  }
+
+  [[nodiscard]] shape_type compute_reduced_shape(
+      const std::vector<bool>& reduction_mask, bool keepdims) const {
+    const size_type axis_count = rank();
+
+    assert(reduction_mask.size() == axis_count);
+
+    shape_type result_shape;
+
+    for (size_type axis = 0; axis < axis_count; ++axis) {
+      if (!reduction_mask[axis]) {
+        result_shape.push_back(shape_[axis]);
+
+        continue;
+      }
+
+      if (keepdims) {
+        result_shape.push_back(size_type{1});
+      }
+    }
+
+    return result_shape;
+  }
+
+  [[nodiscard]] size_type compute_reduction_result_offset(
+      size_type source_offset, const std::vector<bool>& reduction_mask,
+      const strides_type& result_strides, bool keepdims) const noexcept {
+    const size_type axis_count = rank();
+
+    assert(reduction_mask.size() == axis_count);
+    assert(source_offset < numel());
+    assert(result_strides.size() ==
+           (keepdims ? axis_count
+                     : static_cast<size_type>(
+                           std::ranges::count(reduction_mask, false))));
+
+    size_type remaining_source_offset = source_offset;
+    size_type result_offset = 0;
+    size_type result_axis = 0;
+
+    for (size_type source_axis = 0; source_axis < axis_count; ++source_axis) {
+      const size_type source_stride = strides_[source_axis];
+
+      assert(source_stride != 0);
+
+      const size_type source_index = remaining_source_offset / source_stride;
+
+      assert(source_index < shape_[source_axis]);
+
+      remaining_source_offset %= source_stride;
+
+      const bool is_reduced_axis = reduction_mask[source_axis];
+
+      if (!is_reduced_axis) {
+        assert(result_axis < result_strides.size());
+
+        const size_type result_stride = result_strides[result_axis];
+
+        assert(result_stride != 0);
+
+        result_offset += source_index * result_stride;
+      }
+
+      if (keepdims || !is_reduced_axis) {
+        ++result_axis;
+      }
+    }
+
+    assert(remaining_source_offset == 0);
+    assert(result_axis == result_strides.size());
+
+    return result_offset;
   }
 
   [[nodiscard]] size_type map_result_offset_to_source(
