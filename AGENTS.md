@@ -355,5 +355,10 @@ All-element `min()` реализован через `std::ranges::fold_left_firs
 пустой reduction domain и распространяет `NaN`. Он покрыт отдельными runtime-
 и compile-time тестами.
 
-Следующий шаг — отдельно реализовать axis reduction `min(axes, keepdims)`.
-`max` реализуй после него.
+Axis reduction `min(axes, keepdims)` реализован через общий reduction kernel с
+явной инициализацией выходных ячеек значением `+infinity`. Он различает пустой
+reduction domain и zero-extent результат, распространяет `NaN` независимо для
+каждой выходной ячейки и покрыт отдельными runtime- и compile-time тестами.
+
+Следующий шаг — согласовать контракт `max()` и `max(axes, keepdims)` как
+симметричную пару к `min`.

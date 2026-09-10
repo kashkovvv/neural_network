@@ -226,15 +226,7 @@ class Tensor {
 
     Tensor result(compute_reduced_shape(reduction_mask, keepdims));
 
-    for (size_type source_offset = 0; source_offset < numel();
-         ++source_offset) {
-      const size_type result_offset = compute_reduction_result_offset(
-          source_offset, reduction_mask, result.strides_, keepdims);
-
-      assert(result_offset < result.numel());
-
-      result.storage_[result_offset] += storage_[source_offset];
-    }
+    accumulate_reduction_into(result, reduction_mask, keepdims, std::plus<>{});
 
     return result;
   }
@@ -266,16 +258,52 @@ class Tensor {
   {
     validate_not_empty_sentinel();
 
-    const std::optional<value_type> minimum = std::ranges::fold_left_first(
-        storage_, [](value_type lhs, value_type rhs) {
-          return std::isnan(rhs) || rhs < lhs ? rhs : lhs;
-        });
+    const std::optional<value_type> minimum =
+        std::ranges::fold_left_first(storage_, select_minimum);
 
     if (!minimum.has_value()) {
       throw std::domain_error("minimum reduction domain is empty");
     }
 
     return scalar(minimum.value());
+  }
+
+  [[nodiscard]] Tensor min(const axes_type& axes, bool keepdims = false) const&
+    requires std::floating_point<T>
+  {
+    validate_not_empty_sentinel();
+
+    if (axes.empty()) {
+      return *this;
+    }
+
+    const std::vector<bool> reduction_mask = compute_reduction_mask(axes);
+
+    if (axes.size() == rank()) {
+      Tensor result = min();
+
+      if (keepdims) {
+        result.reshape(shape_type(rank(), size_type{1}));
+      }
+
+      return result;
+    }
+
+    shape_type result_shape = compute_reduced_shape(reduction_mask, keepdims);
+    Layout result_layout = compute_layout(result_shape);
+
+    if (numel() == 0 && result_layout.element_count != 0) {
+      throw std::domain_error("minimum reduction domain is empty");
+    }
+
+    storage_type result_storage(result_layout.element_count,
+                                std::numeric_limits<value_type>::infinity());
+    Tensor result(std::move(result_shape), std::move(result_layout),
+                  std::move(result_storage));
+
+    accumulate_reduction_into(result, reduction_mask, keepdims, select_minimum);
+
+    return result;
   }
 
   template <detail::tensor_index... IndexTypes>
@@ -513,8 +541,8 @@ class Tensor {
       assert(remaining_left_offset == 0);
       assert(right_offset < other.numel());
 
-      storage_[left_offset] =
-          operation(storage_[left_offset], other.storage_[right_offset]);
+      storage_[left_offset] = std::invoke(operation, storage_[left_offset],
+                                          other.storage_[right_offset]);
     }
   }
 
@@ -565,8 +593,8 @@ class Tensor {
       assert(left_offset < numel());
       assert(right_offset < other.numel());
 
-      result_storage.emplace_back(
-          operation(storage_[left_offset], other.storage_[right_offset]));
+      result_storage.emplace_back(std::invoke(operation, storage_[left_offset],
+                                              other.storage_[right_offset]));
     }
 
     return Tensor(std::move(result_shape), std::move(result_layout),
@@ -772,6 +800,32 @@ class Tensor {
     assert(result_axis == result_strides.size());
 
     return result_offset;
+  }
+
+  template <typename BinaryOperation>
+  void accumulate_reduction_into(Tensor& result,
+                                 const std::vector<bool>& reduction_mask,
+                                 bool keepdims,
+                                 BinaryOperation operation) const {
+    for (size_type source_offset = 0; source_offset < numel();
+         ++source_offset) {
+      const size_type result_offset = compute_reduction_result_offset(
+          source_offset, reduction_mask, result.strides_, keepdims);
+
+      assert(result_offset < result.numel());
+
+      result.storage_[result_offset] = std::invoke(
+          operation, result.storage_[result_offset], storage_[source_offset]);
+    }
+  }
+
+  [[nodiscard]] static value_type select_minimum(
+      value_type current_minimum, value_type candidate) noexcept {
+    if (std::isnan(candidate) || candidate < current_minimum) {
+      return candidate;
+    }
+
+    return current_minimum;
   }
 
   [[nodiscard]] size_type map_result_offset_to_source(
