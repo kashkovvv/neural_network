@@ -243,6 +243,22 @@ class Tensor {
     return sum() / static_cast<value_type>(numel());
   }
 
+  [[nodiscard]] Tensor mean(const axes_type& axes, bool keepdims = false) const&
+    requires std::floating_point<T>
+  {
+    Tensor result = sum(axes, keepdims);
+
+    if (axes.empty() || result.numel() == 0) {
+      return result;
+    }
+
+    const size_type reduction_element_count = numel() / result.numel();
+
+    result /= static_cast<value_type>(reduction_element_count);
+
+    return result;
+  }
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
     return storage_[compute_offset(indices...)];

@@ -335,5 +335,10 @@ All-element `mean()` реализован через композицию сущ
 `sum()` и tensor-scalar division и покрыт отдельными runtime- и compile-time
 тестами.
 
-Следующий шаг — отдельно реализовать axis reduction `mean(axes, keepdims)`.
-`min` и `max` реализуй последующими небольшими шагами.
+Axis reduction `mean(axes, keepdims)` реализован через существующий axis-aware
+`sum`, безопасное вычисление размера reduction domain как отношения `numel`
+исходного и результирующего тензоров и tensor-scalar division. Он покрыт
+отдельными runtime- и compile-time тестами, включая zero-extent формы и защиту
+от промежуточного переполнения произведения extents.
+
+Следующий шаг — отдельно согласовать контракт `min`; `max` реализуй после него.
