@@ -237,6 +237,12 @@ class Tensor {
     return result;
   }
 
+  [[nodiscard]] Tensor mean() const&
+    requires std::floating_point<T>
+  {
+    return sum() / static_cast<value_type>(numel());
+  }
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
     return storage_[compute_offset(indices...)];
