@@ -1,16 +1,72 @@
 #include <algorithm>
+#include <cmath>
 #include <concepts>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 #include "nn/tensor.hpp"
 
 namespace {
 
 using Tensor = nn::Tensor<float>;
+
+struct DefaultConstructibleNonAssignable {
+  int value{};
+
+  DefaultConstructibleNonAssignable() = default;
+  DefaultConstructibleNonAssignable(
+      const DefaultConstructibleNonAssignable&) = delete;
+  DefaultConstructibleNonAssignable(DefaultConstructibleNonAssignable&&) =
+      default;
+  DefaultConstructibleNonAssignable& operator=(
+      const DefaultConstructibleNonAssignable&) = delete;
+  DefaultConstructibleNonAssignable& operator=(
+      DefaultConstructibleNonAssignable&&) = delete;
+};
+
+struct CopyConstructibleNonDefaultNonAssignable {
+  explicit CopyConstructibleNonDefaultNonAssignable(int initial_value)
+      : value(initial_value) {}
+
+  CopyConstructibleNonDefaultNonAssignable() = delete;
+  CopyConstructibleNonDefaultNonAssignable(
+      const CopyConstructibleNonDefaultNonAssignable&) = default;
+  CopyConstructibleNonDefaultNonAssignable(
+      CopyConstructibleNonDefaultNonAssignable&&) = default;
+  CopyConstructibleNonDefaultNonAssignable& operator=(
+      const CopyConstructibleNonDefaultNonAssignable&) = delete;
+  CopyConstructibleNonDefaultNonAssignable& operator=(
+      CopyConstructibleNonDefaultNonAssignable&&) = delete;
+
+  int value;
+};
+
+struct MoveOnlyNonDefaultNonAssignable {
+  explicit MoveOnlyNonDefaultNonAssignable(int initial_value)
+      : value(initial_value) {}
+
+  MoveOnlyNonDefaultNonAssignable() = delete;
+  MoveOnlyNonDefaultNonAssignable(const MoveOnlyNonDefaultNonAssignable&) =
+      delete;
+  MoveOnlyNonDefaultNonAssignable(MoveOnlyNonDefaultNonAssignable&&) noexcept =
+      default;
+  MoveOnlyNonDefaultNonAssignable& operator=(
+      const MoveOnlyNonDefaultNonAssignable&) = delete;
+  MoveOnlyNonDefaultNonAssignable& operator=(
+      MoveOnlyNonDefaultNonAssignable&&) = delete;
+
+  int value;
+};
+
+using DefaultConstructibleTensor =
+    nn::Tensor<DefaultConstructibleNonAssignable>;
+using CopyConstructibleTensor =
+    nn::Tensor<CopyConstructibleNonDefaultNonAssignable>;
+using MoveOnlyTensor = nn::Tensor<MoveOnlyNonDefaultNonAssignable>;
 
 static_assert(std::same_as<
               decltype(Tensor::full(Tensor::shape_type{2, 3}, 4.0f)), Tensor>);
@@ -71,6 +127,34 @@ void test_full_zero_extent_creation() {
          "full zero-extent tensor strides are incorrect");
   expect(tensor.elements().empty(),
          "full zero-extent tensor elements must be empty");
+}
+
+void test_full_preserves_negative_zero() {
+  const Tensor tensor = Tensor::full({2}, -0.0F);
+
+  for (const Tensor::value_type value : tensor.elements()) {
+    expect(value == 0.0F, "full negative-zero element is not zero");
+    expect(std::signbit(value), "full did not preserve negative-zero sign");
+  }
+}
+
+void test_full_does_not_require_default_construction_or_assignment() {
+  const CopyConstructibleNonDefaultNonAssignable value(7);
+  const CopyConstructibleTensor tensor =
+      CopyConstructibleTensor::full({2, 2}, value);
+
+  expect(tensor.rank() == 2, "generic full tensor rank must be 2");
+  expect(tensor.numel() == 4, "generic full tensor numel must be 4");
+  expect(std::ranges::equal(tensor.shape(),
+                            CopyConstructibleTensor::shape_type{2, 2}),
+         "generic full tensor shape is incorrect");
+  expect(std::ranges::equal(tensor.strides(),
+                            CopyConstructibleTensor::strides_type{2, 1}),
+         "generic full tensor strides are incorrect");
+
+  for (const auto& element : tensor.elements()) {
+    expect(element.value == 7, "generic full tensor element is incorrect");
+  }
 }
 
 void test_full_shape_product_overflow() {
@@ -134,6 +218,25 @@ void test_zeros_zero_extent_creation() {
          "zeros zero-extent tensor elements must be empty");
 }
 
+void test_zeros_does_not_require_assignment() {
+  const DefaultConstructibleTensor tensor =
+      DefaultConstructibleTensor::zeros({2, 2});
+
+  expect(tensor.rank() == 2, "generic zeros tensor rank must be 2");
+  expect(tensor.numel() == 4, "generic zeros tensor numel must be 4");
+  expect(std::ranges::equal(tensor.shape(),
+                            DefaultConstructibleTensor::shape_type{2, 2}),
+         "generic zeros tensor shape is incorrect");
+  expect(std::ranges::equal(tensor.strides(),
+                            DefaultConstructibleTensor::strides_type{2, 1}),
+         "generic zeros tensor strides are incorrect");
+
+  for (const auto& element : tensor.elements()) {
+    expect(element.value == 0,
+           "generic zeros element is not value-initialized");
+  }
+}
+
 void test_scalar_creation() {
   const Tensor tensor = Tensor::scalar(-3.5f);
 
@@ -142,6 +245,18 @@ void test_scalar_creation() {
   expect(tensor.shape().empty(), "scalar tensor shape must be empty");
   expect(tensor.strides().empty(), "scalar tensor strides must be empty");
   expect(tensor.elements()[0] == -3.5f, "scalar tensor element is incorrect");
+}
+
+void test_scalar_supports_move_only_non_default_non_assignable_values() {
+  const MoveOnlyTensor tensor =
+      MoveOnlyTensor::scalar(MoveOnlyNonDefaultNonAssignable(11));
+
+  expect(tensor.rank() == 0, "generic scalar rank must be 0");
+  expect(tensor.numel() == 1, "generic scalar numel must be 1");
+  expect(tensor.shape().empty(), "generic scalar shape must be empty");
+  expect(tensor.strides().empty(), "generic scalar strides must be empty");
+  expect(tensor.elements().front().value == 11,
+         "generic scalar element is incorrect");
 }
 
 void test_from_data_tensor_creation() {
@@ -187,6 +302,23 @@ void test_from_data_zero_extent_creation() {
          "from_data zero-extent tensor strides are incorrect");
   expect(tensor.elements().empty(),
          "from_data zero-extent tensor elements must be empty");
+}
+
+void test_from_data_supports_move_only_non_default_non_assignable_values() {
+  MoveOnlyTensor::storage_type data;
+  data.emplace_back(13);
+
+  const MoveOnlyTensor tensor =
+      MoveOnlyTensor::from_data({1}, std::move(data));
+
+  expect(tensor.rank() == 1, "generic from_data tensor rank must be 1");
+  expect(tensor.numel() == 1, "generic from_data tensor numel must be 1");
+  expect(std::ranges::equal(tensor.shape(), MoveOnlyTensor::shape_type{1}),
+         "generic from_data tensor shape is incorrect");
+  expect(std::ranges::equal(tensor.strides(), MoveOnlyTensor::strides_type{1}),
+         "generic from_data tensor strides are incorrect");
+  expect(tensor.elements().front().value == 13,
+         "generic from_data tensor element is incorrect");
 }
 
 void test_from_data_rejects_too_few_elements() {
@@ -244,14 +376,19 @@ int main() {
     test_full_tensor_creation();
     test_full_scalar_creation();
     test_full_zero_extent_creation();
+    test_full_preserves_negative_zero();
+    test_full_does_not_require_default_construction_or_assignment();
     test_full_shape_product_overflow();
     test_zeros_tensor_creation();
     test_zeros_scalar_creation();
     test_zeros_zero_extent_creation();
+    test_zeros_does_not_require_assignment();
     test_scalar_creation();
+    test_scalar_supports_move_only_non_default_non_assignable_values();
     test_from_data_tensor_creation();
     test_from_data_scalar_creation();
     test_from_data_zero_extent_creation();
+    test_from_data_supports_move_only_non_default_non_assignable_values();
     test_from_data_rejects_too_few_elements();
     test_from_data_rejects_too_many_elements();
     test_from_data_shape_product_overflow();

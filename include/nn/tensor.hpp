@@ -87,21 +87,18 @@ class Tensor {
   }
 
   [[nodiscard]] static Tensor full(shape_type shape, const value_type& value) {
-    Tensor tensor(std::move(shape));
-    std::ranges::fill(tensor.storage_, value);
-
-    return tensor;
+    return Tensor(std::move(shape), value);
   }
 
   [[nodiscard]] static Tensor zeros(shape_type shape) {
-    return full(std::move(shape), value_type{});
+    return Tensor(std::move(shape));
   }
 
   [[nodiscard]] static Tensor scalar(value_type value) {
-    Tensor tensor(shape_type{});
-    tensor.storage_.front() = std::move(value);
+    storage_type scalar_storage;
+    scalar_storage.emplace_back(std::move(value));
 
-    return tensor;
+    return Tensor(shape_type{}, std::move(scalar_storage));
   }
 
   [[nodiscard]] static Tensor from_data(shape_type shape, storage_type data) {
@@ -524,6 +521,12 @@ class Tensor {
     strides_type strides;
     size_type element_count;
   };
+
+  Tensor(shape_type shape, const value_type& fill_value)
+      : shape_(std::move(shape)) {
+    const size_type element_count = initialize_layout();
+    storage_ = storage_type(element_count, fill_value);
+  }
 
   Tensor(shape_type shape, storage_type data)
       : shape_(std::move(shape)), storage_(std::move(data)) {
