@@ -306,6 +306,59 @@ class Tensor {
     return result;
   }
 
+  [[nodiscard]] Tensor max() const&
+    requires std::floating_point<T>
+  {
+    validate_not_empty_sentinel();
+
+    const std::optional<value_type> maximum =
+        std::ranges::fold_left_first(storage_, select_maximum);
+
+    if (!maximum.has_value()) {
+      throw std::domain_error("maximum reduction domain is empty");
+    }
+
+    return scalar(maximum.value());
+  }
+
+  [[nodiscard]] Tensor max(const axes_type& axes, bool keepdims = false) const&
+    requires std::floating_point<T>
+  {
+    validate_not_empty_sentinel();
+
+    if (axes.empty()) {
+      return *this;
+    }
+
+    const std::vector<bool> reduction_mask = compute_reduction_mask(axes);
+
+    if (axes.size() == rank()) {
+      Tensor result = max();
+
+      if (keepdims) {
+        result.reshape(shape_type(rank(), size_type{1}));
+      }
+
+      return result;
+    }
+
+    shape_type result_shape = compute_reduced_shape(reduction_mask, keepdims);
+    Layout result_layout = compute_layout(result_shape);
+
+    if (numel() == 0 && result_layout.element_count != 0) {
+      throw std::domain_error("maximum reduction domain is empty");
+    }
+
+    storage_type result_storage(result_layout.element_count,
+                                -std::numeric_limits<value_type>::infinity());
+    Tensor result(std::move(result_shape), std::move(result_layout),
+                  std::move(result_storage));
+
+    accumulate_reduction_into(result, reduction_mask, keepdims, select_maximum);
+
+    return result;
+  }
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
     return storage_[compute_offset(indices...)];
@@ -826,6 +879,15 @@ class Tensor {
     }
 
     return current_minimum;
+  }
+
+  [[nodiscard]] static value_type select_maximum(
+      value_type current_maximum, value_type candidate) noexcept {
+    if (std::isnan(candidate) || candidate > current_maximum) {
+      return candidate;
+    }
+
+    return current_maximum;
   }
 
   [[nodiscard]] size_type map_result_offset_to_source(

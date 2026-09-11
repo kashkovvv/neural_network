@@ -360,5 +360,16 @@ Axis reduction `min(axes, keepdims)` реализован через общий 
 reduction domain и zero-extent результат, распространяет `NaN` независимо для
 каждой выходной ячейки и покрыт отдельными runtime- и compile-time тестами.
 
-Следующий шаг — согласовать контракт `max()` и `max(axes, keepdims)` как
-симметричную пару к `min`.
+Контракт `max()` и `max(axes, keepdims)` согласован как симметричная пара к
+`min`: те же constraints, value categories, правила axes, `keepdims`, пустых
+областей и результатов, а также распространения `NaN`. Индексы максимумов
+относятся к будущему `argmax`.
+
+Обе перегрузки `max` реализованы: all-element путь использует
+`std::ranges::fold_left_first`, axis-aware путь — общий reduction kernel с
+инициализацией выходных ячеек значением `-infinity`. Реализация покрыта
+отдельными runtime- и compile-time тестами.
+
+Базовый набор reductions (`sum`, `mean`, `min`, `max`) реализован. Перед
+переходом к линейной алгебре необходимо согласовать завершение этапа и отметку
+соответствующего пункта README.
