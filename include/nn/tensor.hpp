@@ -356,6 +356,30 @@ class Tensor {
     return result;
   }
 
+  [[nodiscard]] Tensor dot(const Tensor& other) const&
+    requires std::floating_point<T>
+  {
+    validate_not_empty_sentinel();
+    other.validate_not_empty_sentinel();
+
+    if (rank() != 1 || other.rank() != 1) {
+      throw std::invalid_argument("dot requires both tensors to have rank 1");
+    }
+
+    if (numel() != other.numel()) {
+      throw std::invalid_argument("dot requires tensors with equal numel");
+    }
+
+    value_type accumulator{};
+
+    for (size_type element_index = 0; element_index < numel();
+         ++element_index) {
+      accumulator += storage_[element_index] * other.storage_[element_index];
+    }
+
+    return scalar(accumulator);
+  }
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
     return storage_[compute_offset(indices...)];
