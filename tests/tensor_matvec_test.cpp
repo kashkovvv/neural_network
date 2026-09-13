@@ -95,6 +95,17 @@ void test_matvec_multiplies_rectangular_matrix_without_changing_operands() {
                 "matvec changed the vector operand");
 }
 
+void test_matvec_compensates_each_row_independently() {
+  const Tensor matrix = Tensor::from_data(
+      {2, 3}, {1.0e20F, 1.0F, -1.0e20F, -1.0e20F, 1.0F, 1.0e20F});
+  const Tensor vector = Tensor::from_data({3}, {1.0F, 1.0F, 1.0F});
+
+  const Tensor result = matrix.matvec(vector);
+
+  expect_tensor(result, {2}, {1}, {1.0F, 1.0F},
+                "matvec did not compensate each row independently");
+}
+
 void test_matvec_supports_singleton_dimensions() {
   const Tensor one_row =
       Tensor::from_data({1, 3}, {1.0F, -2.0F, 4.0F})
@@ -126,12 +137,17 @@ void test_matvec_uses_native_floating_point_behavior() {
   const Tensor infinity_result =
       Tensor::from_data({1, 1}, {std::numeric_limits<float>::infinity()})
           .matvec(Tensor::from_data({1}, {2.0F}));
+  const Tensor overflow_result =
+      Tensor::from_data({1, 1}, {std::numeric_limits<float>::max()})
+          .matvec(Tensor::from_data({1}, {2.0F}));
   const Tensor nan_result =
       Tensor::from_data({1, 1}, {std::numeric_limits<float>::infinity()})
           .matvec(Tensor::from_data({1}, {0.0F}));
 
   expect(std::isinf(infinity_result.at(0)) && infinity_result.at(0) > 0.0F,
          "matvec did not preserve native floating-point infinity behavior");
+  expect(std::isinf(overflow_result.at(0)) && overflow_result.at(0) > 0.0F,
+         "matvec product overflow did not produce positive infinity");
   expect(std::isnan(nan_result.at(0)),
          "matvec did not preserve native floating-point NaN behavior");
 }
@@ -246,6 +262,7 @@ void test_matvec_rejects_moved_from_sentinel_on_each_side() {
 int main() {
   try {
     test_matvec_multiplies_rectangular_matrix_without_changing_operands();
+    test_matvec_compensates_each_row_independently();
     test_matvec_supports_singleton_dimensions();
     test_matvec_supports_zero_extent_dimensions();
     test_matvec_uses_native_floating_point_behavior();

@@ -410,16 +410,16 @@ class Tensor {
     result_storage.reserve(row_count);
 
     for (size_type row_index = 0; row_index < row_count; ++row_index) {
-      value_type accumulator{};
+      CompensatedAccumulator accumulator;
       const size_type row_offset = row_index * strides_[0];
 
       for (size_type column_index = 0; column_index < column_count;
            ++column_index) {
-        accumulator +=
-            storage_[row_offset + column_index] * vector.storage_[column_index];
+        accumulator.add(storage_[row_offset + column_index] *
+                        vector.storage_[column_index]);
       }
 
-      result_storage.push_back(accumulator);
+      result_storage.push_back(accumulator.result());
     }
 
     return Tensor(shape_type{row_count}, std::move(result_storage));
