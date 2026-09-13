@@ -447,6 +447,52 @@ class Tensor {
                   std::move(result_storage));
   }
 
+  [[nodiscard]] Tensor matmul(const Tensor& other) const&
+    requires std::floating_point<T>
+  {
+    validate_not_empty_sentinel();
+    other.validate_not_empty_sentinel();
+
+    if (rank() != 2 || other.rank() != 2) {
+      throw std::invalid_argument(
+          "matmul requires both tensors to have rank 2");
+    }
+
+    const size_type row_count = shape_[0];
+    const size_type inner_extent = shape_[1];
+    const size_type column_count = other.shape_[1];
+
+    if (inner_extent != other.shape_[0]) {
+      throw std::invalid_argument(
+          "matmul left column count does not match right row count");
+    }
+
+    Tensor result(shape_type{row_count, column_count});
+
+    if (result.numel() == 0 || inner_extent == 0) {
+      return result;
+    }
+
+    for (size_type row_index = 0; row_index < row_count; ++row_index) {
+      const size_type left_row_offset = row_index * strides_[0];
+      const size_type result_row_offset = row_index * result.strides_[0];
+
+      for (size_type inner_index = 0; inner_index < inner_extent;
+           ++inner_index) {
+        const value_type left_value = storage_[left_row_offset + inner_index];
+        const size_type right_row_offset = inner_index * other.strides_[0];
+
+        for (size_type column_index = 0; column_index < column_count;
+             ++column_index) {
+          result.storage_[result_row_offset + column_index] +=
+              left_value * other.storage_[right_row_offset + column_index];
+        }
+      }
+    }
+
+    return result;
+  }
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
     return storage_[compute_offset(indices...)];

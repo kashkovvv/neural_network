@@ -133,7 +133,7 @@ Roadmap задаёт долгосрочное направление проек�
 - [x] Реализовать базовые операции над тензорами
 - [x] Реализовать reshape, transpose и broadcasting
 - [x] Реализовать reductions
-- [ ] Реализовать векторные и матричные операции
+- [x] Реализовать векторные и матричные операции
 - [ ] Реализовать matrix multiplication
 - [ ] Обеспечить численную устойчивость основных операций
 
@@ -405,4 +405,12 @@ row-major матрицу `{left_numel, right_numel}`, не использует 
 реализован. Перед отметкой соответствующего пункта README необходимо согласие
 пользователя.
 
-Следующий шаг — согласовать контракт rank-two matrix multiplication.
+Строгий rank-two `matmul` реализован и покрыт отдельными runtime- и compile-time
+тестами. Для `{rows, inner}` и `{inner, columns}` он возвращает contiguous
+row-major результат `{rows, columns}`. Cache-friendly reference kernel использует
+порядок циклов row–inner–column, проверяет shape до создания результата и имеет
+fast path для пустого результата и нулевой внутренней оси. Конкретный порядок
+floating-point накопления не является гарантией API.
+
+Этап matrix multiplication ещё не отмечен в README: следующий шаг — согласовать
+batched `matmul` и broadcasting batch-осей.
