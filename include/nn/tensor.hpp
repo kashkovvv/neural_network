@@ -418,6 +418,35 @@ class Tensor {
     return Tensor(shape_type{row_count}, std::move(result_storage));
   }
 
+  [[nodiscard]] Tensor outer(const Tensor& other) const&
+    requires std::floating_point<T>
+  {
+    validate_not_empty_sentinel();
+    other.validate_not_empty_sentinel();
+
+    if (rank() != 1 || other.rank() != 1) {
+      throw std::invalid_argument("outer requires both tensors to have rank 1");
+    }
+
+    const size_type left_element_count = numel();
+    const size_type right_element_count = other.numel();
+
+    shape_type result_shape{left_element_count, right_element_count};
+    Layout result_layout = compute_layout(result_shape);
+
+    storage_type result_storage;
+    result_storage.reserve(result_layout.element_count);
+
+    for (value_type left_value : storage_) {
+      for (value_type right_value : other.storage_) {
+        result_storage.push_back(left_value * right_value);
+      }
+    }
+
+    return Tensor(std::move(result_shape), std::move(result_layout),
+                  std::move(result_storage));
+  }
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
     return storage_[compute_offset(indices...)];
