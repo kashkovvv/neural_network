@@ -421,7 +421,8 @@ broadcast-ятся справа налево. Для `{..., rows, inner}` и
 подчиняются общим правилам broadcasting.
 
 Batched `matmul` реализован поверх общего broadcasting-механизма и покрыт
-детерминированными тестами matching, missing, singleton и zero-extent batch-осей.
-Этап matrix multiplication ещё не отмечен в README: до завершения нужны полное
-ревью, property-тесты относительно простой эталонной реализации и согласие
-пользователя.
+детерминированными тестами matching, missing, singleton и zero-extent batch-осей,
+а также отдельным property-тестом относительно независимой реализации через
+публичный checked access. Полное ревью этапа завершено: production-код,
+негативные проверки, metadata-инварианты и sanitizer-regression чистые.
+Matrix multiplication готов к отметке в README после согласия пользователя.

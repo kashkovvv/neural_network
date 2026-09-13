@@ -285,10 +285,15 @@ void test_matmul_rejects_incompatible_batch_axes_without_changes() {
       "matmul accepted incompatible zero-extent batch axes",
       "incompatible zero-extent batch axes produced the wrong exception "
       "type");
-  expect(std::ranges::equal(left.elements(), expected_left),
-         "failed batch broadcasting changed the left operand");
-  expect(std::ranges::equal(right.elements(), expected_right),
-         "failed batch broadcasting changed the right operand");
+  expect_tensor(left, {2, 2, 3}, {6, 3, 1}, expected_left,
+                "failed batch broadcasting changed the left operand");
+  expect_tensor(right, {3, 3, 1}, {3, 1, 1}, expected_right,
+                "failed batch broadcasting changed the right operand");
+  expect_tensor(zero_batch_left, {0, 2, 3}, {6, 3, 1}, {},
+                "failed zero-extent broadcasting changed the left operand");
+  expect_tensor(nonempty_batch_right, {2, 3, 1}, {3, 1, 1},
+                {0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F},
+                "failed zero-extent broadcasting changed the right operand");
 }
 
 void test_matmul_rejects_inner_dimension_mismatch_without_changes() {
@@ -297,6 +302,8 @@ void test_matmul_rejects_inner_dimension_mismatch_without_changes() {
   const Tensor right = Tensor::from_data({2, 2}, {7.0F, 8.0F, 9.0F, 10.0F});
   const Tensor zero_row_left = Tensor({0, 3});
   const Tensor zero_column_right = Tensor({2, 0});
+  const Tensor batched_left = Tensor({2, 2, 3});
+  const Tensor batched_right = Tensor({1, 4, 2});
   const Tensor::storage_type expected_left{1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F};
   const Tensor::storage_type expected_right{7.0F, 8.0F, 9.0F, 10.0F};
 
@@ -316,6 +323,12 @@ void test_matmul_rejects_inner_dimension_mismatch_without_changes() {
       },
       "zero-column matmul accepted incompatible inner dimensions",
       "zero-column matmul mismatch produced the wrong exception type");
+  expect_throws<std::invalid_argument>(
+      [&batched_left, &batched_right] {
+        static_cast<void>(batched_left.matmul(batched_right));
+      },
+      "batched matmul accepted incompatible inner dimensions",
+      "batched matmul mismatch produced the wrong exception type");
   expect(std::ranges::equal(left.elements(), expected_left),
          "failed matmul changed the left operand");
   expect(std::ranges::equal(right.elements(), expected_right),

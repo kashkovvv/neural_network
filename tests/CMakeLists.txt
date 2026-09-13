@@ -161,3 +161,7 @@ add_test(NAME tensor.outer COMMAND nn_tensor_outer_test)
 add_executable(nn_tensor_matmul_test tensor_matmul_test.cpp)
 target_link_libraries(nn_tensor_matmul_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.matmul COMMAND nn_tensor_matmul_test)
+
+add_executable(nn_tensor_matmul_property_test tensor_matmul_property_test.cpp)
+target_link_libraries(nn_tensor_matmul_property_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.matmul_property COMMAND nn_tensor_matmul_property_test)
