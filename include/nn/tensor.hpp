@@ -489,10 +489,14 @@ class Tensor {
     result_shape.push_back(row_count);
     result_shape.push_back(column_count);
 
-    Tensor result(std::move(result_shape));
+    Layout result_layout = compute_layout(result_shape);
+    const size_type result_element_count = result_layout.element_count;
 
-    if (result.numel() == 0 || inner_extent == 0) {
-      return result;
+    if (result_element_count == 0 || inner_extent == 0) {
+      storage_type result_storage(result_element_count);
+
+      return Tensor(std::move(result_shape), std::move(result_layout),
+                    std::move(result_storage));
     }
 
     const std::span<const size_type> left_batch_strides =
@@ -500,14 +504,20 @@ class Tensor {
     const std::span<const size_type> right_batch_strides =
         std::span<const size_type>{other.strides_}.first(right_row_axis);
     const std::span<const size_type> result_batch_shape =
-        std::span<const size_type>{result.shape_}.first(result_batch_rank);
+        std::span<const size_type>{result_shape}.first(result_batch_rank);
     const strides_type left_broadcast_strides = compute_broadcast_strides(
         left_batch_shape, left_batch_strides, result_batch_shape);
     const strides_type right_broadcast_strides = compute_broadcast_strides(
         right_batch_shape, right_batch_strides, result_batch_shape);
     const size_type result_matrix_element_count =
         checked_multiply(row_count, column_count);
-    const size_type batch_count = result.numel() / result_matrix_element_count;
+    const size_type batch_count =
+        result_element_count / result_matrix_element_count;
+
+    storage_type result_storage;
+    result_storage.reserve(result_element_count);
+
+    std::vector<CompensatedAccumulator> result_row_accumulators(column_count);
 
     for (size_type batch_index = 0; batch_index < batch_count; ++batch_index) {
       const size_type result_batch_offset =
@@ -518,7 +528,7 @@ class Tensor {
 
       for (size_type batch_axis = 0; batch_axis < result_batch_rank;
            ++batch_axis) {
-        const size_type result_stride = result.strides_[batch_axis];
+        const size_type result_stride = result_layout.strides[batch_axis];
 
         assert(result_stride != 0);
 
@@ -538,9 +548,6 @@ class Tensor {
       for (size_type row_index = 0; row_index < row_count; ++row_index) {
         const size_type left_row_offset =
             left_batch_offset + row_index * strides_[left_row_axis];
-        const size_type result_row_offset =
-            result_batch_offset +
-            row_index * result.strides_[result_batch_rank];
 
         for (size_type inner_index = 0; inner_index < inner_extent;
              ++inner_index) {
@@ -550,14 +557,22 @@ class Tensor {
 
           for (size_type column_index = 0; column_index < column_count;
                ++column_index) {
-            result.storage_[result_row_offset + column_index] +=
-                left_value * other.storage_[right_row_offset + column_index];
+            result_row_accumulators[column_index].add(
+                left_value * other.storage_[right_row_offset + column_index]);
           }
+        }
+
+        for (CompensatedAccumulator& accumulator : result_row_accumulators) {
+          result_storage.push_back(accumulator.result());
+          accumulator = CompensatedAccumulator{};
         }
       }
     }
 
-    return result;
+    assert(result_storage.size() == result_element_count);
+
+    return Tensor(std::move(result_shape), std::move(result_layout),
+                  std::move(result_storage));
   }
 
   template <detail::tensor_index... IndexTypes>

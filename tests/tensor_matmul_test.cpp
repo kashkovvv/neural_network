@@ -126,6 +126,19 @@ void test_matmul_multiplies_matching_batches() {
                 "matmul multiplied matching batches incorrectly");
 }
 
+void test_matmul_compensates_each_result_element_independently() {
+  const Tensor left = Tensor::from_data(
+      {2, 1, 3}, {1.0e20F, 1.0F, -1.0e20F, -1.0e20F, 1.0F, 1.0e20F});
+  const Tensor right =
+      Tensor::from_data({3, 2}, {1.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F});
+
+  const Tensor result = left.matmul(right);
+
+  expect_tensor(result, {2, 1, 2}, {2, 2, 1},
+                {1.0F, 1.0F, 1.0F, 1.0F},
+                "matmul did not compensate result elements independently");
+}
+
 void test_matmul_broadcasts_an_unbatched_operand() {
   const Tensor unbatched_left =
       Tensor::from_data({2, 2}, {1.0F, 2.0F, 3.0F, 4.0F});
@@ -200,6 +213,9 @@ void test_matmul_uses_native_floating_point_behavior() {
   const Tensor infinity_result =
       Tensor::from_data({1, 1}, {std::numeric_limits<float>::infinity()})
           .matmul(Tensor::from_data({1, 1}, {2.0F}));
+  const Tensor overflow_result =
+      Tensor::from_data({1, 1}, {std::numeric_limits<float>::max()})
+          .matmul(Tensor::from_data({1, 1}, {2.0F}));
   const Tensor nan_result =
       Tensor::from_data({1, 1}, {0.0F})
           .matmul(Tensor::from_data({1, 1},
@@ -208,6 +224,9 @@ void test_matmul_uses_native_floating_point_behavior() {
   expect(
       std::isinf(infinity_result.at(0, 0)) && infinity_result.at(0, 0) > 0.0F,
       "matmul did not preserve native floating-point infinity behavior");
+  expect(std::isinf(overflow_result.at(0, 0)) &&
+             overflow_result.at(0, 0) > 0.0F,
+         "matmul product overflow did not produce positive infinity");
   expect(std::isnan(nan_result.at(0, 0)),
          "matmul did not preserve native floating-point NaN behavior");
 }
@@ -367,6 +386,7 @@ int main() {
     test_matmul_multiplies_rectangular_matrices_without_changing_operands();
     test_matmul_supports_singleton_dimensions();
     test_matmul_multiplies_matching_batches();
+    test_matmul_compensates_each_result_element_independently();
     test_matmul_broadcasts_an_unbatched_operand();
     test_matmul_broadcasts_missing_and_singleton_batch_axes();
     test_matmul_supports_zero_extent_dimensions();

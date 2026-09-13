@@ -412,7 +412,9 @@ row-major матрицу `{left_numel, right_numel}`, не использует 
 тестами. Для `{rows, inner}` и `{inner, columns}` он возвращает contiguous
 row-major результат `{rows, columns}`. Cache-friendly reference kernel использует
 порядок циклов row–inner–column, проверяет shape до создания результата и имеет
-fast path для пустого результата и нулевой внутренней оси. Конкретный порядок
+fast path для пустого результата и нулевой внутренней оси. Для каждой строки
+результата используется `column_count` независимых Kahan–Babuška–Neumaier
+accumulators; округление самого умножения не компенсируется. Конкретный порядок
 floating-point накопления не является гарантией API.
 
 Для batched `matmul` согласован контракт: оба операнда имеют rank не меньше двух,
@@ -461,4 +463,12 @@ Kahan–Babuška–Neumaier. Контракт пустых векторов и �
 результата. Empty-inner сохраняет additive identity, zero-row и публичный shape
 contract не изменились. Устойчивость относится к сложению вычисленных в
 `value_type` произведений. Реализация прошла полное ревью и
-sanitizer-regression. Следующий шаг численной устойчивости — `matmul`.
+sanitizer-regression.
+
+Единый rank-2/batched `matmul` переведён на Kahan–Babuška–Neumaier accumulation
+без изменения cache-friendly порядка циклов. Для текущей строки переиспользуется
+`column_count` аккумуляторов, а итоговый storage формируется сразу в contiguous
+row-major порядке без предварительной нулевой инициализации. Empty-result и
+empty-inner fast paths, batch broadcasting и публичный API сохранены.
+Реализация прошла полное ревью и sanitizer-regression. Основной этап численной
+устойчивости готов к принятию пользователем и последующей отметке README.
