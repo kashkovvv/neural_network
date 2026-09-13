@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <concepts>
 #include <cstdlib>
 #include <exception>
@@ -118,6 +119,48 @@ void test_sum_reduces_multiple_axes_independently_of_axis_order() {
                "axis order changed the sum shape",
                "axis order changed the sum strides",
                "axis order changed the sum values");
+}
+
+void test_sum_compensates_rounding_error_independently_per_result_element() {
+  const Tensor tensor = Tensor::from_data(
+      {3, 2}, {1.0e20F, -1.0e20F, 1.0F, 1.0F, -1.0e20F, 1.0e20F});
+
+  const Tensor result = tensor.sum({0});
+  const Tensor keepdims_result = tensor.sum({0}, true);
+
+  expect_state(result, {2}, {1}, {1.0F, 1.0F},
+               "compensated axis sum produced an incorrect shape",
+               "compensated axis sum produced incorrect strides",
+               "axis sum did not compensate rounding error independently");
+  expect_state(
+      keepdims_result, {1, 2}, {2, 1}, {1.0F, 1.0F},
+      "keepdims compensated axis sum produced an incorrect shape",
+      "keepdims compensated axis sum produced incorrect strides",
+      "keepdims axis sum did not compensate rounding error independently");
+}
+
+void test_sum_preserves_native_non_finite_behavior_per_result_element() {
+  const float infinity = std::numeric_limits<float>::infinity();
+  const float maximum = std::numeric_limits<float>::max();
+  const float not_a_number = std::numeric_limits<float>::quiet_NaN();
+  const Tensor tensor = Tensor::from_data(
+      {2, 4},
+      {maximum, infinity, infinity, not_a_number, maximum, 2.0F, -infinity,
+       1.0F});
+
+  const Tensor result = tensor.sum({0});
+
+  expect(std::ranges::equal(result.shape(), Tensor::shape_type{4}),
+         "non-finite axis sum produced an incorrect shape");
+  expect(std::ranges::equal(result.strides(), Tensor::strides_type{1}),
+         "non-finite axis sum produced incorrect strides");
+  expect(std::isinf(result[0]) && result[0] > 0.0F,
+         "axis-sum overflow did not produce positive infinity");
+  expect(std::isinf(result[1]) && result[1] > 0.0F,
+         "axis sum did not preserve positive infinity");
+  expect(std::isnan(result[2]),
+         "axis sum of opposite infinities did not produce NaN");
+  expect(std::isnan(result[3]), "axis sum did not propagate NaN");
 }
 
 void test_sum_keepdims_preserves_reduced_axis_positions() {
@@ -321,6 +364,8 @@ int main() {
   try {
     test_sum_reduces_one_axis_without_changing_source();
     test_sum_reduces_multiple_axes_independently_of_axis_order();
+    test_sum_compensates_rounding_error_independently_per_result_element();
+    test_sum_preserves_native_non_finite_behavior_per_result_element();
     test_sum_keepdims_preserves_reduced_axis_positions();
     test_sum_all_axes_returns_scalar_or_all_singleton_shape();
     test_sum_empty_axes_returns_independent_copy();

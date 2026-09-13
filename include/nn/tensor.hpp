@@ -226,11 +226,13 @@ class Tensor {
       return result;
     }
 
-    Tensor result(compute_reduced_shape(reduction_mask, keepdims));
+    shape_type result_shape = compute_reduced_shape(reduction_mask, keepdims);
+    Layout result_layout = compute_layout(result_shape);
+    storage_type result_storage =
+        compute_sum_reduction_storage(reduction_mask, result_layout, keepdims);
 
-    accumulate_reduction_into(result, reduction_mask, keepdims, std::plus<>{});
-
-    return result;
+    return Tensor(std::move(result_shape), std::move(result_layout),
+                  std::move(result_storage));
   }
 
   [[nodiscard]] Tensor mean() const&
@@ -1092,6 +1094,32 @@ class Tensor {
     assert(result_axis == result_strides.size());
 
     return result_offset;
+  }
+
+  [[nodiscard]] storage_type compute_sum_reduction_storage(
+      const std::vector<bool>& reduction_mask, const Layout& result_layout,
+      bool keepdims) const {
+    storage_type result_storage;
+    result_storage.reserve(result_layout.element_count);
+
+    std::vector<CompensatedAccumulator> accumulators(
+        result_layout.element_count);
+
+    for (size_type source_offset = 0; source_offset < numel();
+         ++source_offset) {
+      const size_type result_offset = compute_reduction_result_offset(
+          source_offset, reduction_mask, result_layout.strides, keepdims);
+
+      assert(result_offset < accumulators.size());
+
+      accumulators[result_offset].add(storage_[source_offset]);
+    }
+
+    for (const CompensatedAccumulator& accumulator : accumulators) {
+      result_storage.push_back(accumulator.result());
+    }
+
+    return result_storage;
   }
 
   template <typename BinaryOperation>

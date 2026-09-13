@@ -440,4 +440,11 @@ All-element `sum()` переведён на Kahan–Babuška–Neumaier accumula
 private `CompensatedAccumulator`. Состояние `sum`/`correction` инкапсулировано,
 value-initialized и обновляется единым `add`; при `NaN`, infinity или overflow
 компенсация сбрасывается. Реализация прошла полное ревью и sanitizer-regression.
-Следующий шаг численной устойчивости — axis-aware `sum`.
+
+Axis-aware `sum(axes, keepdims)` переведён на независимый
+Kahan–Babuška–Neumaier accumulator для каждой выходной ячейки. Публичный
+контракт shape, `keepdims`, empty axes и zero-extent форм не изменился;
+`mean(axes, keepdims)` автоматически использует устойчивое накопление через
+`sum`. Итоговый storage формируется без предварительной нулевой инициализации.
+Реализация прошла полное ревью и sanitizer-regression. Следующий шаг численной
+устойчивости — `dot`.
