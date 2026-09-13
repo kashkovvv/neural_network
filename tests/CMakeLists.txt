@@ -149,3 +149,7 @@ add_test(NAME tensor.axis_max COMMAND nn_tensor_axis_max_test)
 add_executable(nn_tensor_dot_test tensor_dot_test.cpp)
 target_link_libraries(nn_tensor_dot_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.dot COMMAND nn_tensor_dot_test)
+
+add_executable(nn_tensor_matvec_test tensor_matvec_test.cpp)
+target_link_libraries(nn_tensor_matvec_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.matvec COMMAND nn_tensor_matvec_test)

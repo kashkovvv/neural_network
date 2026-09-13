@@ -380,6 +380,44 @@ class Tensor {
     return scalar(accumulator);
   }
 
+  [[nodiscard]] Tensor matvec(const Tensor& vector) const&
+    requires std::floating_point<T>
+  {
+    validate_not_empty_sentinel();
+    vector.validate_not_empty_sentinel();
+
+    if (rank() != 2 || vector.rank() != 1) {
+      throw std::invalid_argument(
+          "matvec requires a rank-2 matrix and a rank-1 vector");
+    }
+
+    const size_type row_count = shape_[0];
+    const size_type column_count = shape_[1];
+
+    if (column_count != vector.numel()) {
+      throw std::invalid_argument(
+          "matvec matrix column count does not match vector numel");
+    }
+
+    storage_type result_storage;
+    result_storage.reserve(row_count);
+
+    for (size_type row_index = 0; row_index < row_count; ++row_index) {
+      value_type accumulator{};
+      const size_type row_offset = row_index * strides_[0];
+
+      for (size_type column_index = 0; column_index < column_count;
+           ++column_index) {
+        accumulator +=
+            storage_[row_offset + column_index] * vector.storage_[column_index];
+      }
+
+      result_storage.push_back(accumulator);
+    }
+
+    return Tensor(shape_type{row_count}, std::move(result_storage));
+  }
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
     return storage_[compute_offset(indices...)];
