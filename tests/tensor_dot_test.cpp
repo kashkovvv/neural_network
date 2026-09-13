@@ -97,6 +97,17 @@ void test_dot_computes_vector_dot_product_without_changing_operands() {
          "dot changed the right operand");
 }
 
+void test_dot_compensates_rounding_error_in_product_accumulation() {
+  const Tensor left =
+      Tensor::from_data({3}, {1.0e20F, 1.0F, -1.0e20F});
+  const Tensor right = Tensor::from_data({3}, {1.0F, 1.0F, 1.0F});
+
+  const Tensor result = left.dot(right);
+
+  expect_scalar(result, 1.0F,
+                "dot did not compensate product accumulation error");
+}
+
 void test_dot_supports_singleton_and_empty_vectors() {
   const Tensor singleton_result =
       Tensor::from_data({1}, {-3.0F}).dot(Tensor::from_data({1}, {2.5F}));
@@ -112,12 +123,17 @@ void test_dot_uses_native_floating_point_behavior() {
   const Tensor infinity_result =
       Tensor::from_data({1}, {std::numeric_limits<float>::infinity()})
           .dot(Tensor::from_data({1}, {2.0F}));
+  const Tensor overflow_result =
+      Tensor::from_data({1}, {std::numeric_limits<float>::max()})
+          .dot(Tensor::from_data({1}, {2.0F}));
   const Tensor nan_result =
       Tensor::from_data({1}, {std::numeric_limits<float>::infinity()})
           .dot(Tensor::from_data({1}, {0.0F}));
 
   expect(std::isinf(infinity_result.at()) && infinity_result.at() > 0.0F,
          "dot did not preserve native floating-point infinity behavior");
+  expect(std::isinf(overflow_result.at()) && overflow_result.at() > 0.0F,
+         "dot product overflow did not produce positive infinity");
   expect(std::isnan(nan_result.at()),
          "dot did not preserve native floating-point NaN behavior");
 }
@@ -202,6 +218,7 @@ void test_dot_rejects_moved_from_sentinel_on_each_side() {
 int main() {
   try {
     test_dot_computes_vector_dot_product_without_changing_operands();
+    test_dot_compensates_rounding_error_in_product_accumulation();
     test_dot_supports_singleton_and_empty_vectors();
     test_dot_uses_native_floating_point_behavior();
     test_dot_accepts_rvalues_without_consuming_operands();

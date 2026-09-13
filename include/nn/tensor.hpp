@@ -377,14 +377,14 @@ class Tensor {
       throw std::invalid_argument("dot requires tensors with equal numel");
     }
 
-    value_type accumulator{};
+    CompensatedAccumulator accumulator;
 
     for (size_type element_index = 0; element_index < numel();
          ++element_index) {
-      accumulator += storage_[element_index] * other.storage_[element_index];
+      accumulator.add(storage_[element_index] * other.storage_[element_index]);
     }
 
-    return scalar(accumulator);
+    return scalar(accumulator.result());
   }
 
   [[nodiscard]] Tensor matvec(const Tensor& vector) const&
