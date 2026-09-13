@@ -453,39 +453,100 @@ class Tensor {
     validate_not_empty_sentinel();
     other.validate_not_empty_sentinel();
 
-    if (rank() != 2 || other.rank() != 2) {
+    if (rank() < 2 || other.rank() < 2) {
       throw std::invalid_argument(
-          "matmul requires both tensors to have rank 2");
+          "matmul requires both tensors to have rank of at least 2");
     }
 
-    const size_type row_count = shape_[0];
-    const size_type inner_extent = shape_[1];
-    const size_type column_count = other.shape_[1];
+    const size_type left_matrix_axis = rank() - 2;
+    const size_type right_matrix_axis = other.rank() - 2;
+    const size_type row_count = shape_[left_matrix_axis];
+    const size_type inner_extent = shape_[left_matrix_axis + 1];
+    const size_type right_inner_extent = other.shape_[right_matrix_axis];
+    const size_type column_count = other.shape_[right_matrix_axis + 1];
 
-    if (inner_extent != other.shape_[0]) {
+    if (inner_extent != right_inner_extent) {
       throw std::invalid_argument(
           "matmul left column count does not match right row count");
     }
 
-    Tensor result(shape_type{row_count, column_count});
+    const std::span<const size_type> left_batch_shape =
+        std::span<const size_type>{shape_}.first(left_matrix_axis);
+    const std::span<const size_type> right_batch_shape =
+        std::span<const size_type>{other.shape_}.first(right_matrix_axis);
+
+    shape_type result_shape =
+        compute_broadcast_shape(left_batch_shape, right_batch_shape);
+    const size_type result_batch_rank = result_shape.size();
+
+    result_shape.push_back(row_count);
+    result_shape.push_back(column_count);
+
+    Tensor result(std::move(result_shape));
 
     if (result.numel() == 0 || inner_extent == 0) {
       return result;
     }
 
-    for (size_type row_index = 0; row_index < row_count; ++row_index) {
-      const size_type left_row_offset = row_index * strides_[0];
-      const size_type result_row_offset = row_index * result.strides_[0];
+    const std::span<const size_type> left_batch_strides =
+        std::span<const size_type>{strides_}.first(left_matrix_axis);
+    const std::span<const size_type> right_batch_strides =
+        std::span<const size_type>{other.strides_}.first(right_matrix_axis);
+    const std::span<const size_type> result_batch_shape =
+        std::span<const size_type>{result.shape_}.first(result_batch_rank);
+    const strides_type left_broadcast_strides = compute_broadcast_strides(
+        left_batch_shape, left_batch_strides, result_batch_shape);
+    const strides_type right_broadcast_strides = compute_broadcast_strides(
+        right_batch_shape, right_batch_strides, result_batch_shape);
+    const size_type result_matrix_element_count =
+        checked_multiply(row_count, column_count);
+    const size_type batch_count = result.numel() / result_matrix_element_count;
 
-      for (size_type inner_index = 0; inner_index < inner_extent;
-           ++inner_index) {
-        const value_type left_value = storage_[left_row_offset + inner_index];
-        const size_type right_row_offset = inner_index * other.strides_[0];
+    for (size_type batch_index = 0; batch_index < batch_count; ++batch_index) {
+      const size_type result_batch_offset =
+          batch_index * result_matrix_element_count;
+      size_type remaining_result_offset = result_batch_offset;
+      size_type left_batch_offset = 0;
+      size_type right_batch_offset = 0;
 
-        for (size_type column_index = 0; column_index < column_count;
-             ++column_index) {
-          result.storage_[result_row_offset + column_index] +=
-              left_value * other.storage_[right_row_offset + column_index];
+      for (size_type batch_axis = 0; batch_axis < result_batch_rank;
+           ++batch_axis) {
+        const size_type result_stride = result.strides_[batch_axis];
+
+        assert(result_stride != 0);
+
+        const size_type batch_coordinate =
+            remaining_result_offset / result_stride;
+
+        remaining_result_offset %= result_stride;
+
+        left_batch_offset +=
+            batch_coordinate * left_broadcast_strides[batch_axis];
+        right_batch_offset +=
+            batch_coordinate * right_broadcast_strides[batch_axis];
+      }
+
+      assert(remaining_result_offset == 0);
+
+      for (size_type row_index = 0; row_index < row_count; ++row_index) {
+        const size_type left_row_offset =
+            left_batch_offset + row_index * strides_[left_matrix_axis];
+        const size_type result_row_offset =
+            result_batch_offset +
+            row_index * result.strides_[result_batch_rank];
+
+        for (size_type inner_index = 0; inner_index < inner_extent;
+             ++inner_index) {
+          const value_type left_value = storage_[left_row_offset + inner_index];
+          const size_type right_row_offset =
+              right_batch_offset +
+              inner_index * other.strides_[right_matrix_axis];
+
+          for (size_type column_index = 0; column_index < column_count;
+               ++column_index) {
+            result.storage_[result_row_offset + column_index] +=
+                left_value * other.storage_[right_row_offset + column_index];
+          }
         }
       }
     }
@@ -712,7 +773,7 @@ class Tensor {
     }
 
     const strides_type right_broadcast_strides =
-        other.compute_broadcast_strides(shape_);
+        compute_broadcast_strides(other.shape_, other.strides_, shape_);
     const size_type axis_count = rank();
 
     for (size_type left_offset = 0; left_offset < numel(); ++left_offset) {
@@ -745,7 +806,7 @@ class Tensor {
     validate_not_empty_sentinel();
     other.validate_not_empty_sentinel();
 
-    shape_type result_shape = compute_broadcast_shape(other.shape_);
+    shape_type result_shape = compute_broadcast_shape(shape_, other.shape_);
 
     if (result_shape == shape_) {
       apply_elementwise_inplace(other, operation);
@@ -755,9 +816,9 @@ class Tensor {
 
     Layout result_layout = compute_layout(result_shape);
     const strides_type left_broadcast_strides =
-        compute_broadcast_strides(result_shape);
+        compute_broadcast_strides(shape_, strides_, result_shape);
     const strides_type right_broadcast_strides =
-        other.compute_broadcast_strides(result_shape);
+        compute_broadcast_strides(other.shape_, other.strides_, result_shape);
     const size_type axis_count = result_shape.size();
 
     storage_type result_storage;
@@ -794,9 +855,13 @@ class Tensor {
                   std::move(result_storage));
   }
 
-  [[nodiscard]] strides_type compute_broadcast_strides(
-      const shape_type& target_shape) const {
-    const size_type source_rank = rank();
+  [[nodiscard]] static strides_type compute_broadcast_strides(
+      std::span<const size_type> source_shape,
+      std::span<const size_type> source_strides,
+      std::span<const size_type> target_shape) {
+    assert(source_shape.size() == source_strides.size());
+
+    const size_type source_rank = source_shape.size();
     const size_type target_rank = target_shape.size();
 
     if (source_rank > target_rank) {
@@ -809,7 +874,7 @@ class Tensor {
 
     for (size_type source_axis = 0; source_axis < source_rank; ++source_axis) {
       const size_type target_axis = rank_difference + source_axis;
-      const size_type source_extent = shape_[source_axis];
+      const size_type source_extent = source_shape[source_axis];
       const size_type target_extent = target_shape[target_axis];
 
       if (source_extent == 1) {
@@ -822,15 +887,16 @@ class Tensor {
             "shape");
       }
 
-      broadcast_strides[target_axis] = strides_[source_axis];
+      broadcast_strides[target_axis] = source_strides[source_axis];
     }
 
     return broadcast_strides;
   }
 
-  [[nodiscard]] shape_type compute_broadcast_shape(
-      const shape_type& right_shape) const {
-    const size_type left_rank = rank();
+  [[nodiscard]] static shape_type compute_broadcast_shape(
+      std::span<const size_type> left_shape,
+      std::span<const size_type> right_shape) {
+    const size_type left_rank = left_shape.size();
     const size_type right_rank = right_shape.size();
     const size_type result_rank = std::max(left_rank, right_rank);
 
@@ -846,7 +912,7 @@ class Tensor {
 
       if (result_axis >= left_rank_difference) {
         const size_type left_axis = result_axis - left_rank_difference;
-        left_extent = shape_[left_axis];
+        left_extent = left_shape[left_axis];
       }
 
       if (result_axis >= right_rank_difference) {

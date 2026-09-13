@@ -412,5 +412,16 @@ row-major результат `{rows, columns}`. Cache-friendly reference kernel 
 fast path для пустого результата и нулевой внутренней оси. Конкретный порядок
 floating-point накопления не является гарантией API.
 
-Этап matrix multiplication ещё не отмечен в README: следующий шаг — согласовать
-batched `matmul` и broadcasting batch-осей.
+Для batched `matmul` согласован контракт: оба операнда имеют rank не меньше двух,
+последние две оси интерпретируются как матрицы, а предшествующие batch-оси
+broadcast-ятся справа налево. Для `{..., rows, inner}` и
+`{..., inner, columns}` результат имеет форму
+`{broadcast_batch..., rows, columns}`. Rank-one promotion не выполняется:
+векторные случаи остаются отдельными `dot` и `matvec`. Zero-extent batch-оси
+подчиняются общим правилам broadcasting.
+
+Batched `matmul` реализован поверх общего broadcasting-механизма и покрыт
+детерминированными тестами matching, missing, singleton и zero-extent batch-осей.
+Этап matrix multiplication ещё не отмечен в README: до завершения нужны полное
+ревью, property-тесты относительно простой эталонной реализации и согласие
+пользователя.
