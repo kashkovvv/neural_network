@@ -196,8 +196,13 @@ class Tensor {
   {
     validate_not_empty_sentinel();
 
-    return scalar(
-        std::ranges::fold_left(storage_, value_type{}, std::plus<>{}));
+    CompensatedAccumulator accumulator;
+
+    for (value_type element : storage_) {
+      accumulator.add(element);
+    }
+
+    return scalar(accumulator.result());
   }
 
   [[nodiscard]] Tensor sum(const axes_type& axes, bool keepdims = false) const&
@@ -539,8 +544,7 @@ class Tensor {
              ++inner_index) {
           const value_type left_value = storage_[left_row_offset + inner_index];
           const size_type right_row_offset =
-              right_batch_offset +
-              inner_index * other.strides_[right_row_axis];
+              right_batch_offset + inner_index * other.strides_[right_row_axis];
 
           for (size_type column_index = 0; column_index < column_count;
                ++column_index) {
@@ -718,6 +722,35 @@ class Tensor {
   struct Layout {
     strides_type strides;
     size_type element_count;
+  };
+
+  class CompensatedAccumulator {
+   public:
+    void add(value_type value) {
+      const value_type next_sum = sum_ + value;
+
+      if (!std::isfinite(sum_) || !std::isfinite(value) ||
+          !std::isfinite(next_sum)) {
+        sum_ = next_sum;
+        correction_ = value_type{};
+
+        return;
+      }
+
+      if (std::abs(sum_) >= std::abs(value)) {
+        correction_ += (sum_ - next_sum) + value;
+      } else {
+        correction_ += (value - next_sum) + sum_;
+      }
+
+      sum_ = next_sum;
+    }
+
+    [[nodiscard]] value_type result() const { return sum_ + correction_; }
+
+   private:
+    value_type sum_{};
+    value_type correction_{};
   };
 
   Tensor(shape_type shape, const value_type& fill_value)

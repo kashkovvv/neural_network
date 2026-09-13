@@ -106,20 +106,46 @@ void test_sum_returns_additive_identity_for_zero_extent_tensors() {
                 "sum of a zero-extent tensor is not additive identity");
 }
 
+void test_sum_preserves_small_terms_during_cancellation() {
+  const Tensor positive_large_first =
+      Tensor::from_data({3}, {1.0e20F, 1.0F, -1.0e20F});
+  const Tensor negative_large_first =
+      Tensor::from_data({3}, {-1.0e20F, 1.0F, 1.0e20F});
+
+  expect_scalar(positive_large_first.sum(), 1.0F,
+                "sum lost a small positive term during cancellation");
+  expect_scalar(negative_large_first.sum(), 1.0F,
+                "sum lost a small term after negative cancellation");
+}
+
 void test_sum_uses_native_floating_point_behavior() {
+  const float infinity = std::numeric_limits<float>::infinity();
+  const float nan = std::numeric_limits<float>::quiet_NaN();
   const Tensor infinity_result =
       Tensor::from_data({2}, {std::numeric_limits<float>::max(),
                               std::numeric_limits<float>::max()})
           .sum();
-  const Tensor nan_result =
-      Tensor::from_data({2}, {std::numeric_limits<float>::infinity(),
-                              -std::numeric_limits<float>::infinity()})
-          .sum();
+  const Tensor explicit_infinity_result =
+      Tensor::from_data({3}, {1.0F, infinity, 2.0F}).sum();
+  const Tensor negative_infinity_result =
+      Tensor::from_data({2}, {-infinity, -1.0F}).sum();
+  const Tensor opposite_infinities_result =
+      Tensor::from_data({2}, {infinity, -infinity}).sum();
+  const Tensor explicit_nan_result =
+      Tensor::from_data({3}, {1.0F, nan, 2.0F}).sum();
 
   expect(std::isinf(infinity_result.at()) && infinity_result.at() > 0.0F,
          "sum did not preserve native floating-point overflow behavior");
-  expect(std::isnan(nan_result.at()),
-         "sum did not preserve native floating-point NaN behavior");
+  expect(std::isinf(explicit_infinity_result.at()) &&
+             explicit_infinity_result.at() > 0.0F,
+         "sum changed positive infinity into another value");
+  expect(std::isinf(negative_infinity_result.at()) &&
+             negative_infinity_result.at() < 0.0F,
+         "sum changed negative infinity into another value");
+  expect(std::isnan(opposite_infinities_result.at()),
+         "sum of opposite infinities is not NaN");
+  expect(std::isnan(explicit_nan_result.at()),
+         "sum did not propagate an explicit NaN");
 }
 
 void test_sum_accepts_rvalue_without_consuming_source() {
@@ -152,6 +178,7 @@ int main() {
     test_sum_reduces_all_elements_without_changing_source();
     test_sum_supports_rank_zero_and_singleton_tensors();
     test_sum_returns_additive_identity_for_zero_extent_tensors();
+    test_sum_preserves_small_terms_during_cancellation();
     test_sum_uses_native_floating_point_behavior();
     test_sum_accepts_rvalue_without_consuming_source();
     test_sum_rejects_moved_from_sentinel();

@@ -134,7 +134,7 @@ Roadmap задаёт долгосрочное направление проек�
 - [x] Реализовать reshape, transpose и broadcasting
 - [x] Реализовать reductions
 - [x] Реализовать векторные и матричные операции
-- [ ] Реализовать matrix multiplication
+- [x] Реализовать matrix multiplication
 - [ ] Обеспечить численную устойчивость основных операций
 
 ### 3. Компоненты нейронной сети
@@ -425,4 +425,19 @@ Batched `matmul` реализован поверх общего broadcasting-м�
 а также отдельным property-тестом относительно независимой реализации через
 публичный checked access. Полное ревью этапа завершено: production-код,
 негативные проверки, metadata-инварианты и sanitizer-regression чистые.
-Matrix multiplication готов к отметке в README после согласия пользователя.
+Matrix multiplication принят и отмечен в README.
+
+Этап численной устойчивости начат с all-element `sum()`. Согласовано
+использовать compensated summation по алгоритму Neumaier в типе `value_type`,
+сохранив публичный тип результата и additive identity пустого domain. Потерянные
+из-за округления малые слагаемые учитываются отдельной correction. Для `NaN`,
+infinity и переполнения конечного сложения сохраняется native floating-point
+семантика: compensation сбрасывается, а специальное значение продолжает
+накапливаться обычным сложением. Конкретный общий порядок накопления по-прежнему
+не является гарантией API.
+
+All-element `sum()` переведён на Kahan–Babuška–Neumaier accumulation через
+private `CompensatedAccumulator`. Состояние `sum`/`correction` инкапсулировано,
+value-initialized и обновляется единым `add`; при `NaN`, infinity или overflow
+компенсация сбрасывается. Реализация прошла полное ревью и sanitizer-regression.
+Следующий шаг численной устойчивости — axis-aware `sum`.
