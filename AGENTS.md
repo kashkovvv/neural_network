@@ -135,7 +135,7 @@ Roadmap задаёт долгосрочное направление проек�
 - [x] Реализовать reductions
 - [x] Реализовать векторные и матричные операции
 - [x] Реализовать matrix multiplication
-- [ ] Обеспечить численную устойчивость основных операций
+- [x] Обеспечить численную устойчивость основных операций
 
 ### 3. Компоненты нейронной сети
 
@@ -471,4 +471,47 @@ sanitizer-regression.
 row-major порядке без предварительной нулевой инициализации. Empty-result и
 empty-inner fast paths, batch broadcasting и публичный API сохранены.
 Реализация прошла полное ревью и sanitizer-regression. Основной этап численной
-устойчивости готов к принятию пользователем и последующей отметке README.
+устойчивости принят и отмечен в README.
+
+Следующий этап — `TensorView` и slicing. Согласован первый ограниченный шаг:
+whole-tensor `TensorView<Element>` без slicing. `Tensor<T>::view() &` возвращает
+mutable `TensorView<T>`, а `view() const&` — `TensorView<const T>`; rvalue-
+перегрузки запрещены. View не владеет элементами, но владеет копиями shape и
+strides, поэтому metadata существующего view не меняется после metadata-only
+`Tensor::reshape`. Уничтожение или замена backing storage инвалидирует view.
+Константность handle имеет shallow-семантику как у `std::span`: запись запрещает
+именно `TensorView<const T>`. Element access временного view разрешён, а
+`shape()` и `strides()` на rvalue запрещены из-за lifetime возвращаемого span.
+Whole-tensor view contiguous; `elements()` пока не добавляется, потому что такой
+API нельзя корректно распространить на будущие strided views. Подготовлены
+compile-time и runtime тесты `tensor.view`. Общий unchecked/checked расчёт
+offset вынесен из `Tensor` в `nn::detail` и переиспользуется существующими
+`operator[]`/`at()`; это подготовительная часть production-реализации view.
+Каркас `TensorView<Element>` реализован в отдельном public header: добавлены
+aliases, невладеющее storage-представление, собственные shape/strides,
+origin offset, logical numel и contiguity flag, закрытый invariant-preserving
+constructor, special members и безопасное неявное преобразование mutable view
+в const view. Whole-tensor `Tensor::view()` и metadata, checked/unchecked access
+`TensorView` реализованы и прошли полное ревью с sanitizer-regression. Доступ
+учитывает `origin_offset`; moved-from view переводится в отдельный empty sentinel,
+а checked access sentinel отклоняется. `Tensor` и `TensorView` используют единый
+контракт доступа к sentinel: unchecked `operator[]` имеет assert-предусловие,
+checked `at()` бросает `std::invalid_argument`. Copy assignment view имеет strong
+exception guarantee через copy-and-swap; member `swap` и свободный ADL-visible
+`swap` образуют тот же публичный swap API, что и у `Tensor`. C++23-код не
+использует отсутствующий `std::span::at` и полагается на проверенный логический
+offset плюс закрытый representation invariant backing storage.
+
+До принятия `TensorView` полностью проверить contracts template-параметров
+обоих типов.
+Владеющий `Tensor<T>` должен принимать только подходящий неквалифицированный
+объектный element type и давать нашу понятную диагностику для `const`/`volatile`,
+references, `void` и неполных типов вместо ошибки из `std::vector`;
+неизменяемый владеющий объект выражается как `const Tensor<T>`, а не
+`Tensor<const T>`. Для невладеющего `TensorView<Element>` отдельно определить
+допустимую cv-квалификацию: разрешить `TensorView<T>` и read-only
+`TensorView<const T>`, явно отклонять lvalue/rvalue references, raw arrays,
+`volatile`, `void`, incomplete и abstract types. Эти ограничения и safe
+conversion `TensorView<T>` в `TensorView<const T>` уже закреплены негативными
+compile-time тестами не использующими `remove_cvref_t` для молчаливой
+нормализации. Отдельный contract владеющего `Tensor<T>` остаётся открытым.

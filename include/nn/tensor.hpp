@@ -10,23 +10,11 @@
 #include <optional>
 #include <span>
 #include <stdexcept>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
-namespace nn::detail {
-
-template <typename IndexType>
-concept tensor_index =
-    std::integral<std::remove_cvref_t<IndexType>> &&
-    (!std::same_as<std::remove_cvref_t<IndexType>, bool>) &&
-    (!std::same_as<std::remove_cvref_t<IndexType>, char>) &&
-    (!std::same_as<std::remove_cvref_t<IndexType>, wchar_t>) &&
-    (!std::same_as<std::remove_cvref_t<IndexType>, char8_t>) &&
-    (!std::same_as<std::remove_cvref_t<IndexType>, char16_t>) &&
-    (!std::same_as<std::remove_cvref_t<IndexType>, char32_t>);
-
-}  // namespace nn::detail
+#include "nn/detail/tensor_indexing.hpp"
+#include "nn/tensor_view.hpp"
 
 namespace nn {
 
@@ -131,6 +119,24 @@ class Tensor {
 
   std::span<value_type> elements() && = delete;
   std::span<const value_type> elements() const&& = delete;
+
+  [[nodiscard]] TensorView<value_type> view() & {
+    validate_not_empty_sentinel();
+
+    return TensorView<value_type>(std::span<value_type>{storage_}, shape_,
+                                  strides_, size_type{0}, numel(), true);
+  }
+
+  [[nodiscard]] TensorView<const value_type> view() const& {
+    validate_not_empty_sentinel();
+
+    return TensorView<const value_type>(std::span<const value_type>{storage_},
+                                        shape_, strides_, size_type{0}, numel(),
+                                        true);
+  }
+
+  TensorView<value_type> view() && = delete;
+  TensorView<const value_type> view() const&& = delete;
 
   void reshape(shape_type target_shape) & {
     validate_not_empty_sentinel();
@@ -577,25 +583,35 @@ class Tensor {
 
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& operator[](IndexTypes... indices) & noexcept {
-    return storage_[compute_offset(indices...)];
+    assert(!is_empty_sentinel());
+
+    return storage_[detail::compute_tensor_offset(shape_, strides_,
+                                                  indices...)];
   }
 
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] const value_type& operator[](
       IndexTypes... indices) const& noexcept {
-    return storage_[compute_offset(indices...)];
+    assert(!is_empty_sentinel());
+
+    return storage_[detail::compute_tensor_offset(shape_, strides_,
+                                                  indices...)];
   }
 
   template <detail::tensor_index IndexType, std::size_t Extent>
   [[nodiscard]] value_type& operator[](
       std::span<IndexType, Extent> indices) & noexcept {
-    return storage_[compute_offset(indices)];
+    assert(!is_empty_sentinel());
+
+    return storage_[detail::compute_tensor_offset(shape_, strides_, indices)];
   }
 
   template <detail::tensor_index IndexType, std::size_t Extent>
   [[nodiscard]] const value_type& operator[](
       std::span<IndexType, Extent> indices) const& noexcept {
-    return storage_[compute_offset(indices)];
+    assert(!is_empty_sentinel());
+
+    return storage_[detail::compute_tensor_offset(shape_, strides_, indices)];
   }
 
   template <typename... Arguments>
@@ -606,23 +622,35 @@ class Tensor {
 
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] value_type& at(IndexTypes... indices) & {
-    return storage_.at(compute_offset_checked(indices...));
+    validate_not_empty_sentinel();
+
+    return storage_[detail::compute_tensor_offset_checked(shape_, strides_,
+                                                          indices...)];
   }
 
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] const value_type& at(IndexTypes... indices) const& {
-    return storage_.at(compute_offset_checked(indices...));
+    validate_not_empty_sentinel();
+
+    return storage_[detail::compute_tensor_offset_checked(shape_, strides_,
+                                                          indices...)];
   }
 
   template <detail::tensor_index IndexType, std::size_t Extent>
   [[nodiscard]] value_type& at(std::span<IndexType, Extent> indices) & {
-    return storage_.at(compute_offset_checked(indices));
+    validate_not_empty_sentinel();
+
+    return storage_[detail::compute_tensor_offset_checked(shape_, strides_,
+                                                          indices)];
   }
 
   template <detail::tensor_index IndexType, std::size_t Extent>
   [[nodiscard]] const value_type& at(
       std::span<IndexType, Extent> indices) const& {
-    return storage_.at(compute_offset_checked(indices));
+    validate_not_empty_sentinel();
+
+    return storage_[detail::compute_tensor_offset_checked(shape_, strides_,
+                                                          indices)];
   }
 
   template <typename... Arguments>
@@ -1203,93 +1231,6 @@ class Tensor {
     assert(source_offset < numel());
 
     return source_offset;
-  }
-
-  template <detail::tensor_index IndexType>
-  [[nodiscard]] size_type compute_axis_offset(size_type axis,
-                                              IndexType index) const noexcept {
-    assert(axis < rank());
-    assert(std::in_range<size_type>(index));
-
-    const size_type normalized_index = static_cast<size_type>(index);
-
-    assert(normalized_index < shape_[axis]);
-
-    return normalized_index * strides_[axis];
-  }
-
-  template <detail::tensor_index... IndexTypes>
-  [[nodiscard]] size_type compute_offset(IndexTypes... indices) const noexcept {
-    assert(sizeof...(IndexTypes) == rank());
-
-    size_type axis = 0;
-    size_type offset = 0;
-
-    ((offset += compute_axis_offset(axis, indices), ++axis), ...);
-
-    return offset;
-  }
-
-  template <detail::tensor_index IndexType, std::size_t Extent>
-  [[nodiscard]] size_type compute_offset(
-      std::span<IndexType, Extent> indices) const noexcept {
-    assert(indices.size() == rank());
-
-    size_type offset = 0;
-
-    for (size_type axis = 0; axis < indices.size(); ++axis) {
-      offset += compute_axis_offset(axis, indices[axis]);
-    }
-
-    return offset;
-  }
-
-  template <detail::tensor_index IndexType>
-  [[nodiscard]] size_type compute_axis_offset_checked(size_type axis,
-                                                      IndexType index) const {
-    assert(axis < rank());
-
-    if (!std::in_range<size_type>(index)) {
-      throw std::out_of_range("tensor index is out of bounds");
-    }
-
-    const size_type normalized_index = static_cast<size_type>(index);
-
-    if (normalized_index >= shape_[axis]) {
-      throw std::out_of_range("tensor index is out of bounds");
-    }
-
-    return normalized_index * strides_[axis];
-  }
-
-  template <detail::tensor_index... IndexTypes>
-  [[nodiscard]] size_type compute_offset_checked(IndexTypes... indices) const {
-    if (sizeof...(IndexTypes) != rank()) {
-      throw std::invalid_argument("tensor index count does not match rank");
-    }
-
-    size_type axis = 0;
-    size_type offset = 0;
-
-    ((offset += compute_axis_offset_checked(axis, indices), ++axis), ...);
-
-    return offset;
-  }
-
-  template <detail::tensor_index IndexType, std::size_t Extent>
-  [[nodiscard]] size_type compute_offset_checked(
-      std::span<IndexType, Extent> indices) const {
-    if (indices.size() != rank()) {
-      throw std::invalid_argument("tensor index count does not match rank");
-    }
-
-    size_type offset = 0;
-
-    for (size_type axis = 0; axis < indices.size(); ++axis) {
-      offset += compute_axis_offset_checked(axis, indices[axis]);
-    }
-
-    return offset;
   }
 
   [[nodiscard]] Layout compute_layout(const shape_type& shape) const {

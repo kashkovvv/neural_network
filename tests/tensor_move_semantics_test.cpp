@@ -58,9 +58,9 @@ void expect_empty_sentinel(const Tensor& tensor) {
   expect(tensor.elements().empty(),
          "moved-from sentinel elements are not empty");
 
-  expect_throws<std::out_of_range>(
+  expect_throws<std::invalid_argument>(
       [&tensor] { static_cast<void>(tensor.at()); },
-      "empty sentinel at() did not throw std::out_of_range",
+      "empty sentinel at() did not throw std::invalid_argument",
       "empty sentinel at() produced the wrong exception type");
 
   expect_throws<std::invalid_argument>(
