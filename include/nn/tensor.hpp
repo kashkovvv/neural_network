@@ -13,12 +13,13 @@
 #include <utility>
 #include <vector>
 
+#include "nn/detail/tensor_concepts.hpp"
 #include "nn/detail/tensor_indexing.hpp"
 #include "nn/tensor_view.hpp"
 
 namespace nn {
 
-template <typename T>
+template <detail::tensor_element T>
 class Tensor {
  public:
   using value_type = T;

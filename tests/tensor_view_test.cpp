@@ -18,28 +18,6 @@ using MutableView = nn::TensorView<float>;
 using ConstView = nn::TensorView<const float>;
 using MetadataSpan = std::span<const Tensor::size_type>;
 
-class AbstractElement {
- public:
-  virtual ~AbstractElement() = default;
-  virtual void operation() = 0;
-};
-
-class IncompleteElement;
-
-template <typename Element>
-concept CanFormTensorView = requires { typename nn::TensorView<Element>; };
-
-static_assert(CanFormTensorView<float>);
-static_assert(CanFormTensorView<const float>);
-static_assert(!CanFormTensorView<volatile float>);
-static_assert(!CanFormTensorView<const volatile float>);
-static_assert(!CanFormTensorView<float&>);
-static_assert(!CanFormTensorView<float&&>);
-static_assert(!CanFormTensorView<void>);
-static_assert(!CanFormTensorView<float[2]>);
-static_assert(!CanFormTensorView<AbstractElement>);
-static_assert(!CanFormTensorView<IncompleteElement>);
-
 template <typename TensorType>
 concept CanCreateView = requires { std::declval<TensorType>().view(); };
 

@@ -502,16 +502,14 @@ exception guarantee через copy-and-swap; member `swap` и свободны�
 использует отсутствующий `std::span::at` и полагается на проверенный логический
 offset плюс закрытый representation invariant backing storage.
 
-До принятия `TensorView` полностью проверить contracts template-параметров
-обоих типов.
-Владеющий `Tensor<T>` должен принимать только подходящий неквалифицированный
-объектный element type и давать нашу понятную диагностику для `const`/`volatile`,
-references, `void` и неполных типов вместо ошибки из `std::vector`;
-неизменяемый владеющий объект выражается как `const Tensor<T>`, а не
-`Tensor<const T>`. Для невладеющего `TensorView<Element>` отдельно определить
-допустимую cv-квалификацию: разрешить `TensorView<T>` и read-only
-`TensorView<const T>`, явно отклонять lvalue/rvalue references, raw arrays,
-`volatile`, `void`, incomplete и abstract types. Эти ограничения и safe
-conversion `TensorView<T>` в `TensorView<const T>` уже закреплены негативными
-compile-time тестами не использующими `remove_cvref_t` для молчаливой
-нормализации. Отдельный contract владеющего `Tensor<T>` остаётся открытым.
+Контракты template-параметров `Tensor` и `TensorView` реализованы общими
+concepts из `nn::detail`. Владеющий `Tensor<T>` принимает только полный
+неквалифицированный неабстрактный безопасно уничтожаемый объектный element type,
+исключая `bool` из-за неконтинуальной специализации `std::vector<bool>`; const
+owning tensor выражается как `const Tensor<T>`. `TensorView<Element>` допускает
+тот же underlying type и его top-level `const`-вариант. Для `Tensor` отклоняются
+top-level `const`/`volatile`, для `TensorView` — top-level `volatile`; оба шаблона
+отклоняют references, `void`, functions, raw arrays, incomplete, abstract и
+небезопасно уничтожаемые types на границе class template. Контракт закреплён
+отдельными compile-time тестами, включая различие top-level const pointer и
+pointer-to-const.

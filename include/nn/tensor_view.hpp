@@ -9,21 +9,12 @@
 #include <utility>
 #include <vector>
 
+#include "nn/detail/tensor_concepts.hpp"
 #include "nn/detail/tensor_indexing.hpp"
-
-namespace nn::detail {
-
-template <typename Element>
-concept tensor_view_element =
-    std::is_object_v<Element> && (!std::is_array_v<Element>) &&
-    (!std::is_volatile_v<Element>) && requires { sizeof(Element); } &&
-    (!std::is_abstract_v<Element>);
-
-}  // namespace nn::detail
 
 namespace nn {
 
-template <typename T>
+template <detail::tensor_element T>
 class Tensor;
 
 template <detail::tensor_view_element Element>
