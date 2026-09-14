@@ -513,3 +513,11 @@ top-level `const`/`volatile`, для `TensorView` — top-level `volatile`; об
 небезопасно уничтожаемые types на границе class template. Контракт закреплён
 отдельными compile-time тестами, включая различие top-level const pointer и
 pointer-to-const.
+
+Первый шаг slicing реализован и прошёл ревью: `TensorView::slice(axis, start,
+stop)` создаёт невладеющий полуинтервальный subview `[start, stop)` по одной
+оси, копирует metadata, сохраняет strides и корректно накапливает origin
+offset. Поддержаны вложенные, пустые и non-contiguous slices; contiguity
+вычисляется из результирующих shape/strides, а закрытый constructor проверяет
+representation invariant произвольного strided view. Оптимизация вызова на
+rvalue view через переиспользование его metadata отложена до профилирования.

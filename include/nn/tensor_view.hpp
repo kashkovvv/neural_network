@@ -3,6 +3,7 @@
 #include <cassert>
 #include <concepts>
 #include <cstddef>
+#include <limits>
 #include <span>
 #include <stdexcept>
 #include <type_traits>
@@ -109,6 +110,44 @@ class TensorView {
 
   [[nodiscard]] bool is_contiguous() const noexcept { return is_contiguous_; }
 
+  [[nodiscard]] TensorView slice(size_type axis, size_type start,
+                                 size_type stop) const {
+    validate_not_empty_sentinel();
+
+    if (axis >= rank()) {
+      throw std::out_of_range("slice axis is out of range");
+    }
+
+    if (start > stop) {
+      throw std::invalid_argument("slice start exceeds stop");
+    }
+
+    if (stop > shape_[axis]) {
+      throw std::out_of_range("slice stop is out of range");
+    }
+
+    shape_type result_shape = shape_;
+    const size_type result_extent = stop - start;
+    result_shape[axis] = result_extent;
+
+    strides_type result_strides = strides_;
+
+    assert(element_count_ == 0 || shape_[axis] != 0);
+
+    const size_type result_element_count =
+        element_count_ == 0 ? size_type{0}
+                            : element_count_ / shape_[axis] * result_extent;
+    const size_type result_origin_offset =
+        result_element_count == 0 ? size_type{0}
+                                  : origin_offset_ + start * strides_[axis];
+    const bool result_is_contiguous =
+        compute_contiguity(result_shape, result_strides, result_element_count);
+
+    return TensorView(storage_, std::move(result_shape),
+                      std::move(result_strides), result_origin_offset,
+                      result_element_count, result_is_contiguous);
+  }
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] reference operator[](IndexTypes... indices) const noexcept {
     assert(!is_empty_sentinel());
@@ -165,9 +204,83 @@ class TensorView {
         origin_offset_(origin_offset),
         element_count_(element_count),
         is_contiguous_(is_contiguous) {
-    assert(shape_.size() == strides_.size());
-    assert(origin_offset_ <= storage_.size());
-    assert(element_count_ == 0 || origin_offset_ < storage_.size());
+    assert(has_valid_layout());
+    assert(is_contiguous_ ==
+           compute_contiguity(shape_, strides_, element_count_));
+  }
+
+  [[nodiscard]] static bool compute_contiguity(
+      std::span<const size_type> shape, std::span<const size_type> strides,
+      size_type element_count) noexcept {
+    assert(shape.size() == strides.size());
+
+    if (element_count == 0) {
+      return true;
+    }
+
+    size_type expected_stride = 1;
+
+    for (size_type remaining_axes = shape.size(); remaining_axes != 0;
+         --remaining_axes) {
+      const size_type axis = remaining_axes - 1;
+      const size_type extent = shape[axis];
+
+      if (extent == 1) {
+        continue;
+      }
+
+      if (strides[axis] != expected_stride) {
+        return false;
+      }
+
+      expected_stride *= extent;
+    }
+
+    return true;
+  }
+
+  [[nodiscard]] bool has_valid_layout() const noexcept {
+    if (shape_.size() != strides_.size()) {
+      return false;
+    }
+
+    size_type expected_element_count = 1;
+    const size_type max_size = std::numeric_limits<size_type>::max();
+
+    for (const size_type extent : shape_) {
+      if (extent != 0 && expected_element_count > max_size / extent) {
+        return false;
+      }
+
+      expected_element_count *= extent;
+    }
+
+    if (expected_element_count != element_count_) {
+      return false;
+    }
+
+    if (element_count_ == 0) {
+      return origin_offset_ == 0;
+    }
+
+    if (origin_offset_ >= storage_.size()) {
+      return false;
+    }
+
+    size_type remaining_storage = storage_.size() - 1 - origin_offset_;
+
+    for (size_type axis = 0; axis < shape_.size(); ++axis) {
+      const size_type maximum_index = shape_[axis] - 1;
+      const size_type stride = strides_[axis];
+
+      if (stride != 0 && maximum_index > remaining_storage / stride) {
+        return false;
+      }
+
+      remaining_storage -= maximum_index * stride;
+    }
+
+    return true;
   }
 
   [[nodiscard]] bool is_empty_sentinel() const noexcept {
