@@ -521,3 +521,10 @@ offset. Поддержаны вложенные, пустые и non-contiguous 
 вычисляется из результирующих shape/strides, а закрытый constructor проверяет
 representation invariant произвольного strided view. Оптимизация вызова на
 rvalue view через переиспользование его metadata отложена до профилирования.
+
+Прямой convenience API `Tensor::slice(axis, start, stop)` реализован для
+mutable и const lvalue и делегирует соответственно `view().slice(...)`, не
+дублируя slicing-валидацию и layout-логику. Он возвращает `TensorView<T>` либо
+`TensorView<const T>`; обе rvalue-перегрузки удалены, чтобы исключить немедленно
+dangling view временного owning tensor. API покрыт compile-time и runtime
+тестами и прошёл ревью.

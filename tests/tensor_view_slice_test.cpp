@@ -21,6 +21,12 @@ concept CanSlice = requires {
                                  Tensor::size_type{0});
 };
 
+template <typename TensorType>
+concept CanSliceTensor = requires {
+  std::declval<TensorType>().slice(Tensor::size_type{0}, Tensor::size_type{0},
+                                   Tensor::size_type{0});
+};
+
 static_assert(CanSlice<MutableView&>);
 static_assert(CanSlice<const MutableView&>);
 static_assert(CanSlice<MutableView&&>);
@@ -38,6 +44,19 @@ static_assert(
                  ConstView>);
 static_assert(!noexcept(std::declval<const MutableView&>().slice(0, 0, 0)));
 static_assert(!noexcept(std::declval<const ConstView&>().slice(0, 0, 0)));
+
+static_assert(CanSliceTensor<Tensor&>);
+static_assert(CanSliceTensor<const Tensor&>);
+static_assert(!CanSliceTensor<Tensor&&>);
+static_assert(!CanSliceTensor<const Tensor&&>);
+
+static_assert(std::same_as<decltype(std::declval<Tensor&>().slice(0, 0, 0)),
+                           MutableView>);
+static_assert(
+    std::same_as<decltype(std::declval<const Tensor&>().slice(0, 0, 0)),
+                 ConstView>);
+static_assert(!noexcept(std::declval<Tensor&>().slice(0, 0, 0)));
+static_assert(!noexcept(std::declval<const Tensor&>().slice(0, 0, 0)));
 
 void expect(bool condition, const char* message) {
   if (!condition) {
@@ -232,6 +251,70 @@ void test_const_mutable_view_handle_preserves_mutability() {
          "const mutable-view handle made slice elements const");
 }
 
+void test_mutable_tensor_slice_delegates_to_view_slice() {
+  Tensor tensor =
+      Tensor::from_data({3, 4}, {0.0F, 1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F, 7.0F,
+                                 8.0F, 9.0F, 10.0F, 11.0F});
+  MutableView result = tensor.slice(1, 1, 3);
+
+  const Tensor::shape_type expected_shape{3, 2};
+  const Tensor::strides_type expected_strides{4, 1};
+
+  expect(std::ranges::equal(result.shape(), expected_shape),
+         "mutable tensor slice shape is incorrect");
+  expect(std::ranges::equal(result.strides(), expected_strides),
+         "mutable tensor slice strides are incorrect");
+  expect(result.numel() == 6, "mutable tensor slice numel is incorrect");
+  expect(!result.is_contiguous(),
+         "mutable tensor partial-column slice must be non-contiguous");
+  expect(result.at(1, 0) == 5.0F,
+         "mutable tensor slice returned an incorrect element");
+
+  result.at(2, 1) = 100.0F;
+
+  expect(tensor.at(2, 2) == 100.0F,
+         "mutable tensor slice does not alias tensor storage");
+}
+
+void test_const_tensor_slice_preserves_element_constness() {
+  Tensor tensor =
+      Tensor::from_data({2, 3}, {0.0F, 1.0F, 2.0F, 3.0F, 4.0F, 5.0F});
+  const Tensor& const_tensor = tensor;
+  ConstView result = const_tensor.slice(0, 1, 2);
+
+  const Tensor::shape_type expected_shape{1, 3};
+
+  expect(std::ranges::equal(result.shape(), expected_shape),
+         "const tensor slice shape is incorrect");
+  expect(result.is_contiguous(),
+         "const tensor complete-row slice must be contiguous");
+  expect(result.at(0, 2) == 5.0F,
+         "const tensor slice returned an incorrect element");
+
+  tensor.at(1, 2) = 50.0F;
+
+  expect(result.at(0, 2) == 50.0F,
+         "tensor write is not visible through const tensor slice");
+}
+
+void test_tensor_slice_delegates_validation() {
+  Tensor tensor =
+      Tensor::from_data({2, 3}, {0.0F, 1.0F, 2.0F, 3.0F, 4.0F, 5.0F});
+
+  expect_throws<std::out_of_range>(
+      [&tensor] { static_cast<void>(tensor.slice(1, 0, 4)); },
+      "tensor slice accepted stop beyond the source extent",
+      "out-of-range tensor slice stop produced the wrong exception type");
+
+  Tensor moved_to(std::move(tensor));
+  static_cast<void>(moved_to);
+
+  expect_throws<std::invalid_argument>(
+      [&tensor] { static_cast<void>(tensor.slice(0, 0, 0)); },
+      "moved-from tensor accepted slicing",
+      "moved-from tensor slicing produced the wrong exception type");
+}
+
 void test_slice_rejects_invalid_arguments_without_mutation() {
   Tensor tensor =
       Tensor::from_data({2, 3}, {0.0F, 1.0F, 2.0F, 3.0F, 4.0F, 5.0F});
@@ -299,6 +382,9 @@ int main() {
     test_zero_extent_source_can_be_sliced();
     test_const_view_slice_preserves_element_constness();
     test_const_mutable_view_handle_preserves_mutability();
+    test_mutable_tensor_slice_delegates_to_view_slice();
+    test_const_tensor_slice_preserves_element_constness();
+    test_tensor_slice_delegates_validation();
     test_slice_rejects_invalid_arguments_without_mutation();
     test_scalar_and_moved_from_views_reject_slice();
   } catch (const std::exception& exception) {
