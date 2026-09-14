@@ -140,19 +140,22 @@ class Tensor {
   TensorView<const value_type> view() const&& = delete;
 
   [[nodiscard]] TensorView<value_type> slice(size_type axis, size_type start,
-                                             size_type stop) & {
-    return view().slice(axis, start, stop);
+                                             size_type stop,
+                                             size_type step = 1) & {
+    return view().slice(axis, start, stop, step);
   }
 
   [[nodiscard]] TensorView<const value_type> slice(size_type axis,
                                                    size_type start,
-                                                   size_type stop) const& {
-    return view().slice(axis, start, stop);
+                                                   size_type stop,
+                                                   size_type step = 1) const& {
+    return view().slice(axis, start, stop, step);
   }
 
-  TensorView<value_type> slice(size_type, size_type, size_type) && = delete;
-  TensorView<const value_type> slice(size_type, size_type,
-                                     size_type) const&& = delete;
+  TensorView<value_type> slice(size_type, size_type, size_type,
+                               size_type = 1) && = delete;
+  TensorView<const value_type> slice(size_type, size_type, size_type,
+                                     size_type = 1) const&& = delete;
 
   void reshape(shape_type target_shape) & {
     validate_not_empty_sentinel();

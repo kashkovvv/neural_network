@@ -111,7 +111,7 @@ class TensorView {
   [[nodiscard]] bool is_contiguous() const noexcept { return is_contiguous_; }
 
   [[nodiscard]] TensorView slice(size_type axis, size_type start,
-                                 size_type stop) const {
+                                 size_type stop, size_type step = 1) const {
     validate_not_empty_sentinel();
 
     if (axis >= rank()) {
@@ -126,11 +126,21 @@ class TensorView {
       throw std::out_of_range("slice stop is out of range");
     }
 
+    if (step == 0) {
+      throw std::invalid_argument("slice step must be positive");
+    }
+
     shape_type result_shape = shape_;
-    const size_type result_extent = stop - start;
+    const size_type distance = stop - start;
+    const size_type result_extent =
+        distance == 0 ? size_type{0} : 1 + (distance - 1) / step;
     result_shape[axis] = result_extent;
 
     strides_type result_strides = strides_;
+
+    if (result_extent > 1) {
+      result_strides[axis] *= step;
+    }
 
     assert(element_count_ == 0 || shape_[axis] != 0);
 
