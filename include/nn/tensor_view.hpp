@@ -158,6 +158,9 @@ class TensorView {
                       result_element_count, result_is_contiguous);
   }
 
+  [[nodiscard]] Tensor<value_type> to_tensor() const
+    requires std::copy_constructible<value_type>;
+
   template <detail::tensor_index... IndexTypes>
   [[nodiscard]] reference operator[](IndexTypes... indices) const noexcept {
     assert(!is_empty_sentinel());
@@ -310,6 +313,31 @@ class TensorView {
     assert(view_offset < storage_.size() - origin_offset_);
 
     return origin_offset_ + view_offset;
+  }
+
+  [[nodiscard]] size_type map_logical_offset_to_storage_offset(
+      size_type logical_offset) const noexcept {
+    assert(logical_offset < numel());
+
+    size_type remaining_logical_offset = logical_offset;
+    size_type view_offset = 0;
+
+    for (size_type remaining_axes = rank(); remaining_axes != 0;
+         --remaining_axes) {
+      const size_type axis = remaining_axes - 1;
+      const size_type extent = shape_[axis];
+
+      assert(extent != 0);
+
+      const size_type index = remaining_logical_offset % extent;
+
+      remaining_logical_offset /= extent;
+      view_offset += index * strides_[axis];
+    }
+
+    assert(remaining_logical_offset == 0);
+
+    return compute_storage_offset(view_offset);
   }
 
   void reset_to_empty_sentinel() noexcept {

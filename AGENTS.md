@@ -539,3 +539,14 @@ step отклоняется; результирующий extent вычисля�
 layout, так и восстанавливать contiguity после сокращения разорванной оси до
 singleton. Отрицательный step не поддерживается до отдельного проектирования
 signed-stride layout.
+
+Явная материализация `TensorView::to_tensor() const` реализована и прошла
+полное ревью с sanitizer-regression. Метод доступен только для
+copy-constructible `value_type`, возвращает независимый contiguous row-major
+`Tensor<value_type>` той же формы и копирует элементы в логическом
+порядке view. Contiguous view использует прямое копирование точного
+`subspan(origin_offset, numel)`, non-contiguous view отображает каждый логический
+row-major offset через shape/strides. Scalar, zero-extent, const и временные
+view поддержаны, moved-from sentinel отклоняется. Неявного
+преобразования view в owning tensor нет. Инкрементальный cursor для
+non-contiguous пути отложен до профилирования.

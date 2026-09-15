@@ -1296,6 +1296,33 @@ class Tensor {
   storage_type storage_;
 };
 
+template <detail::tensor_view_element Element>
+auto TensorView<Element>::to_tensor() const -> Tensor<value_type>
+  requires std::copy_constructible<value_type>
+{
+  validate_not_empty_sentinel();
+
+  typename Tensor<value_type>::storage_type result_storage;
+  result_storage.reserve(numel());
+
+  if (is_contiguous()) {
+    for (const element_type& element :
+         storage_.subspan(origin_offset_, numel())) {
+      result_storage.emplace_back(element);
+    }
+  } else {
+    for (size_type logical_offset = 0; logical_offset < numel();
+         ++logical_offset) {
+      const size_type storage_offset =
+          map_logical_offset_to_storage_offset(logical_offset);
+
+      result_storage.emplace_back(storage_[storage_offset]);
+    }
+  }
+
+  return Tensor<value_type>::from_data(shape_, std::move(result_storage));
+}
+
 template <typename T>
 void swap(Tensor<T>& lhs, Tensor<T>& rhs) noexcept {
   lhs.swap(rhs);
