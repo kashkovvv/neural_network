@@ -563,3 +563,13 @@ sentinel дают `nullptr`, все доступные перегрузки им
 В публичных алгоритмах `rank()`/`numel()` используются для семантики
 тензора; прямые fields, `shape_.size()` и `storage_.size()` остаются в
 representation-invariant проверках и физических kernels.
+
+Полный iterator API owning `Tensor` реализован и прошёл полное ревью с
+sanitizer-regression. Обычные pointer-итераторы обходят contiguous row-major
+storage и дают mutable/const, forward/reverse доступ через `begin`/`end`,
+`cbegin`/`cend`, `rbegin`/`rend` и `crbegin`/`crend`; прямые вызовы на rvalue
+запрещены. `Tensor` моделирует common, sized, random-access и contiguous range,
+но не borrowed range. Scalar образует диапазон из одного элемента, zero-extent
+и moved-from sentinel — пустой диапазон. `reshape` сохраняет валидность
+итераторов, поскольку не меняет storage. Итераторы `TensorView` отложены до
+отдельного проектирования логического обхода произвольных strided views.

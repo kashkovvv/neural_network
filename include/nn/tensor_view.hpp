@@ -24,10 +24,11 @@ class TensorView {
   using element_type = Element;
   using value_type = std::remove_cv_t<element_type>;
   using size_type = std::size_t;
-  using shape_type = std::vector<size_type>;
-  using strides_type = std::vector<size_type>;
   using reference = element_type&;
   using pointer = element_type*;
+
+  using shape_type = std::vector<size_type>;
+  using strides_type = std::vector<size_type>;
 
   TensorView() = delete;
 

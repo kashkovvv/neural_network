@@ -6,6 +6,7 @@
 #include <concepts>
 #include <cstddef>
 #include <functional>
+#include <iterator>
 #include <limits>
 #include <optional>
 #include <span>
@@ -24,12 +25,20 @@ class Tensor {
  public:
   using value_type = T;
   using size_type = std::size_t;
+  using difference_type = std::ptrdiff_t;
+  using reference = value_type&;
+  using const_reference = const value_type&;
+  using pointer = value_type*;
+  using const_pointer = const value_type*;
+  using iterator = pointer;
+  using const_iterator = const_pointer;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
   using shape_type = std::vector<size_type>;
   using axes_type = std::vector<size_type>;
   using strides_type = std::vector<size_type>;
   using storage_type = std::vector<value_type>;
-  using pointer = value_type*;
-  using const_pointer = const value_type*;
 
   explicit Tensor(shape_type shape) : shape_(std::move(shape)) {
     const size_type element_count = initialize_layout();
@@ -133,6 +142,68 @@ class Tensor {
 
   pointer data() && = delete;
   const_pointer data() const&& = delete;
+
+  [[nodiscard]] iterator begin() & noexcept { return data(); }
+
+  [[nodiscard]] const_iterator begin() const& noexcept { return data(); }
+
+  iterator begin() && noexcept = delete;
+  const_iterator begin() const&& noexcept = delete;
+
+  [[nodiscard]] const_iterator cbegin() const& noexcept { return begin(); }
+
+  const_iterator cbegin() && noexcept = delete;
+  const_iterator cbegin() const&& noexcept = delete;
+
+  [[nodiscard]] iterator end() & noexcept { return begin() + numel(); }
+
+  [[nodiscard]] const_iterator end() const& noexcept {
+    return begin() + numel();
+  }
+
+  iterator end() && noexcept = delete;
+  const_iterator end() const&& noexcept = delete;
+
+  [[nodiscard]] const_iterator cend() const& noexcept { return end(); }
+
+  const_iterator cend() && noexcept = delete;
+  const_iterator cend() const&& noexcept = delete;
+
+  [[nodiscard]] reverse_iterator rbegin() & noexcept {
+    return reverse_iterator{end()};
+  }
+
+  [[nodiscard]] const_reverse_iterator rbegin() const& noexcept {
+    return const_reverse_iterator{end()};
+  }
+
+  reverse_iterator rbegin() && noexcept = delete;
+  const_reverse_iterator rbegin() const&& noexcept = delete;
+
+  [[nodiscard]] const_reverse_iterator crbegin() const& noexcept {
+    return rbegin();
+  }
+
+  const_reverse_iterator crbegin() && noexcept = delete;
+  const_reverse_iterator crbegin() const&& noexcept = delete;
+
+  [[nodiscard]] reverse_iterator rend() & noexcept {
+    return reverse_iterator{begin()};
+  }
+
+  [[nodiscard]] const_reverse_iterator rend() const& noexcept {
+    return const_reverse_iterator{begin()};
+  }
+
+  reverse_iterator rend() && noexcept = delete;
+  const_reverse_iterator rend() const&& noexcept = delete;
+
+  [[nodiscard]] const_reverse_iterator crend() const& noexcept {
+    return rend();
+  }
+
+  const_reverse_iterator crend() && noexcept = delete;
+  const_reverse_iterator crend() const&& noexcept = delete;
 
   [[nodiscard]] TensorView<value_type> view() & {
     validate_not_empty_sentinel();
