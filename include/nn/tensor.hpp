@@ -534,6 +534,53 @@ class Tensor {
     return Tensor(shape_type{row_count}, std::move(result_storage));
   }
 
+  [[nodiscard]] Tensor vecmat(const Tensor& matrix) const&
+    requires std::floating_point<T>
+  {
+    validate_not_empty_sentinel();
+    matrix.validate_not_empty_sentinel();
+
+    if (rank() != 1 || matrix.rank() != 2) {
+      throw std::invalid_argument(
+          "vecmat requires a rank-1 vector and a rank-2 matrix");
+    }
+
+    const size_type inner_extent = numel();
+    const size_type matrix_inner_extent = matrix.shape_[0];
+    const size_type column_count = matrix.shape_[1];
+
+    if (inner_extent != matrix_inner_extent) {
+      throw std::invalid_argument(
+          "vecmat vector numel does not match matrix row count");
+    }
+
+    if (inner_extent == 0 || column_count == 0) {
+      return Tensor(shape_type{column_count});
+    }
+
+    std::vector<CompensatedAccumulator> accumulators(column_count);
+
+    for (size_type inner_index = 0; inner_index < inner_extent; ++inner_index) {
+      const value_type vector_value = storage_[inner_index];
+      const size_type matrix_row_offset = inner_index * matrix.strides_[0];
+
+      for (size_type column_index = 0; column_index < column_count;
+           ++column_index) {
+        accumulators[column_index].add(
+            vector_value * matrix.storage_[matrix_row_offset + column_index]);
+      }
+    }
+
+    storage_type result_storage;
+    result_storage.reserve(column_count);
+
+    for (const CompensatedAccumulator& accumulator : accumulators) {
+      result_storage.push_back(accumulator.result());
+    }
+
+    return Tensor(shape_type{column_count}, std::move(result_storage));
+  }
+
   [[nodiscard]] Tensor outer(const Tensor& other) const&
     requires std::floating_point<T>
   {
