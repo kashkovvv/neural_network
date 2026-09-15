@@ -27,6 +27,7 @@ class TensorView {
   using shape_type = std::vector<size_type>;
   using strides_type = std::vector<size_type>;
   using reference = element_type&;
+  using pointer = element_type*;
 
   TensorView() = delete;
 
@@ -110,6 +111,10 @@ class TensorView {
 
   [[nodiscard]] bool is_contiguous() const noexcept { return is_contiguous_; }
 
+  [[nodiscard]] pointer data() const noexcept {
+    return numel() == 0 ? nullptr : storage_.data() + compute_storage_offset(0);
+  }
+
   [[nodiscard]] TensorView slice(size_type axis, size_type start,
                                  size_type stop, size_type step = 1) const {
     validate_not_empty_sentinel();
@@ -142,14 +147,18 @@ class TensorView {
       result_strides[axis] *= step;
     }
 
-    assert(element_count_ == 0 || shape_[axis] != 0);
+    const size_type source_element_count = numel();
+
+    assert(source_element_count == 0 || shape_[axis] != 0);
 
     const size_type result_element_count =
-        element_count_ == 0 ? size_type{0}
-                            : element_count_ / shape_[axis] * result_extent;
+        source_element_count == 0
+            ? size_type{0}
+            : source_element_count / shape_[axis] * result_extent;
     const size_type result_origin_offset =
-        result_element_count == 0 ? size_type{0}
-                                  : origin_offset_ + start * strides_[axis];
+        result_element_count == 0
+            ? size_type{0}
+            : compute_storage_offset(start * strides_[axis]);
     const bool result_is_contiguous =
         compute_contiguity(result_shape, result_strides, result_element_count);
 

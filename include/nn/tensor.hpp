@@ -28,6 +28,8 @@ class Tensor {
   using axes_type = std::vector<size_type>;
   using strides_type = std::vector<size_type>;
   using storage_type = std::vector<value_type>;
+  using pointer = value_type*;
+  using const_pointer = const value_type*;
 
   explicit Tensor(shape_type shape) : shape_(std::move(shape)) {
     const size_type element_count = initialize_layout();
@@ -120,6 +122,17 @@ class Tensor {
 
   std::span<value_type> elements() && = delete;
   std::span<const value_type> elements() const&& = delete;
+
+  [[nodiscard]] pointer data() & noexcept {
+    return numel() == 0 ? nullptr : storage_.data();
+  }
+
+  [[nodiscard]] const_pointer data() const& noexcept {
+    return numel() == 0 ? nullptr : storage_.data();
+  }
+
+  pointer data() && = delete;
+  const_pointer data() const&& = delete;
 
   [[nodiscard]] TensorView<value_type> view() & {
     validate_not_empty_sentinel();

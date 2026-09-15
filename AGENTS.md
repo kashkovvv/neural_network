@@ -550,3 +550,16 @@ row-major offset через shape/strides. Scalar, zero-extent, const и вре�
 view поддержаны, moved-from sentinel отклоняется. Неявного
 преобразования view в owning tensor нет. Инкрементальный cursor для
 non-contiguous пути отложен до профилирования.
+
+Низкоуровневый `data()` реализован для `Tensor` и `TensorView` и прошёл
+полное ревью с sanitizer-regression. Owning tensor даёт mutable/const
+указатель только на lvalue; rvalue-перегрузки удалены. View возвращает
+указатель на логический нулевой элемент с учётом origin offset; для
+non-contiguous view указатель не описывает линейный логический диапазон.
+Constness view определяется `element_type`, пустые объекты и moved-from
+sentinel дают `nullptr`, все доступные перегрузки имеют `noexcept`.
+`reshape` не инвалидирует указатель, потому что не меняет storage; lifetime
+и инвалидация `data()` определяются backing storage владеющего tensor.
+В публичных алгоритмах `rank()`/`numel()` используются для семантики
+тензора; прямые fields, `shape_.size()` и `storage_.size()` остаются в
+representation-invariant проверках и физических kernels.

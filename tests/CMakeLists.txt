@@ -30,6 +30,10 @@ add_executable(nn_tensor_view_to_tensor_test tensor_view_to_tensor_test.cpp)
 target_link_libraries(nn_tensor_view_to_tensor_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.view_to_tensor COMMAND nn_tensor_view_to_tensor_test)
 
+add_executable(nn_tensor_data_test tensor_data_test.cpp)
+target_link_libraries(nn_tensor_data_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME tensor.data COMMAND nn_tensor_data_test)
+
 add_executable(nn_tensor_creation_test tensor_creation_test.cpp)
 target_link_libraries(nn_tensor_creation_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME tensor.creation COMMAND nn_tensor_creation_test)
