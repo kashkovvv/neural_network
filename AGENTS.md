@@ -145,7 +145,7 @@ Roadmap задаёт долгосрочное направление проек�
 
 ### 3. Компоненты нейронной сети
 
-- [ ] Реализовать линейный слой
+- [x] Реализовать линейный слой
 - [ ] Реализовать функции активации
 - [ ] Реализовать функции потерь
 - [ ] Реализовать инициализацию параметров
@@ -630,3 +630,15 @@ input или layer дают `std::invalid_argument`; zero-extent оси сохр
 готовых Tensor kernels и прошёл полное ревью с sanitizer-regression. Проверки
 rank-zero и moved-from операндов не дублируются в `Linear`: `vecmat` и `matmul`
 уже обеспечивают требуемые типы ошибок до вычислений.
+
+Текущий шаг функций активации — свободная функция
+`relu(Tensor<T> tensor)` в `include/nn/activations.hpp`. Она принимает
+floating-point tensor по значению: lvalue копируется, storage rvalue
+переиспользуется. Отрицательные элементы заменяются на `T{}`, неотрицательные
+сохраняются; `NaN` распространяется, signed zero сохраняется, `-infinity`
+переходит в `+0`, `+infinity` не меняется. Shape, strides и rank сохраняются;
+rank-zero и zero-extent тензоры поддерживаются, moved-from sentinel даёт
+`std::invalid_argument`. Реализация использует непосредственно
+`std::floating_point<T>`: отдельный activation concept не вводится, поскольку
+`Tensor<T>` уже гарантирует общий контракт element type. Тесты подготовлены в
+`tests/relu_test.cpp`; реализация прошла полное ревью и sanitizer-regression.

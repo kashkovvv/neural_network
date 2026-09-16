@@ -205,3 +205,7 @@ add_test(NAME linear.construction COMMAND nn_linear_construction_test)
 add_executable(nn_linear_forward_test linear_forward_test.cpp)
 target_link_libraries(nn_linear_forward_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME linear.forward COMMAND nn_linear_forward_test)
+
+add_executable(nn_relu_test relu_test.cpp)
+target_link_libraries(nn_relu_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME activation.relu COMMAND nn_relu_test)
