@@ -658,5 +658,24 @@ sanitizer-regression.
 metadata и sentinel-контрактом. Численное преобразование каждого элемента
 выполняется через `std::tanh`, чтобы не вводить нестабильную ручную формулу с
 экспонентами. `NaN` распространяется, infinities дают `-1` и `1`, signed zero
-сохраняется. Реализация делегирует существующему unary activation helper,
+сохраняется. Реализация делегирует существующему elementwise activation helper,
 покрыта `tests/tanh_test.cpp` и прошла полное ревью с sanitizer-regression.
+
+Текущий шаг функций активации — axis-aware
+`softmax(Tensor<T> tensor, Tensor<T>::size_type axis)`. Ось обязательна и должна
+находиться в диапазоне `[0, rank())`; rank-zero tensor поэтому не имеет
+допустимой оси. Moved-from sentinel отклоняется через `std::invalid_argument`
+до проверки оси, недопустимая ось — через `std::out_of_range`. Параметр по
+значению копирует lvalue и переиспользует storage rvalue; shape, strides и rank
+сохраняются, zero-extent tensor остаётся пустым.
+
+Каждый axis slice вычисляется устойчивой трёхпроходной схемой: максимум,
+`exp(element - maximum)` с накоплением суммы, затем нормализация. Для обычного
+конечного slice результат лежит в `[0, 1]` и в пределах floating-point ошибки
+суммируется в единицу. `-infinity` рядом с конечными значениями даёт нулевую
+вероятность. Slice с `NaN`, хотя бы одним `+infinity` или состоящий только из
+`-infinity` целиком даёт `NaN`; искусственное равномерное распределение для
+таких вырожденных входов не вводится. Произвольная ось обходится через outer,
+axis и inner размеры за `O(numel)` времени и `O(1)` дополнительной памяти
+kernel. Реализация покрыта `tests/softmax_test.cpp` и прошла полное ревью с
+sanitizer-regression.

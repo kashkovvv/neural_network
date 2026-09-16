@@ -217,3 +217,7 @@ add_test(NAME activation.sigmoid COMMAND nn_sigmoid_test)
 add_executable(nn_tanh_test tanh_test.cpp)
 target_link_libraries(nn_tanh_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME activation.tanh COMMAND nn_tanh_test)
+
+add_executable(nn_softmax_test softmax_test.cpp)
+target_link_libraries(nn_softmax_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME activation.softmax COMMAND nn_softmax_test)
