@@ -653,3 +653,10 @@ metadata и sentinel-контрактом. Численная формула в�
 принимающий tensor по ссылке; конкретные численные формулы остаются в `relu` и
 `sigmoid`. Реализация покрыта `tests/sigmoid_test.cpp` и прошла полное ревью с
 sanitizer-regression.
+
+Третий шаг функций активации — `tanh(Tensor<T> tensor)` с тем же ownership,
+metadata и sentinel-контрактом. Численное преобразование каждого элемента
+выполняется через `std::tanh`, чтобы не вводить нестабильную ручную формулу с
+экспонентами. `NaN` распространяется, infinities дают `-1` и `1`, signed zero
+сохраняется. Реализация делегирует существующему unary activation helper,
+покрыта `tests/tanh_test.cpp` и прошла полное ревью с sanitizer-regression.

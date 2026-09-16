@@ -49,4 +49,12 @@ template <std::floating_point T>
   return tensor;
 }
 
+template <std::floating_point T>
+[[nodiscard]] Tensor<T> tanh(Tensor<T> tensor) {
+  detail::apply_unary_activation_inplace(
+      tensor, [](T element) { return std::tanh(element); });
+
+  return tensor;
+}
+
 }  // namespace nn

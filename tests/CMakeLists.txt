@@ -213,3 +213,7 @@ add_test(NAME activation.relu COMMAND nn_relu_test)
 add_executable(nn_sigmoid_test sigmoid_test.cpp)
 target_link_libraries(nn_sigmoid_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME activation.sigmoid COMMAND nn_sigmoid_test)
+
+add_executable(nn_tanh_test tanh_test.cpp)
+target_link_libraries(nn_tanh_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME activation.tanh COMMAND nn_tanh_test)
