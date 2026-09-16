@@ -642,3 +642,14 @@ rank-zero и zero-extent тензоры поддерживаются, moved-from
 `std::floating_point<T>`: отдельный activation concept не вводится, поскольку
 `Tensor<T>` уже гарантирует общий контракт element type. Тесты подготовлены в
 `tests/relu_test.cpp`; реализация прошла полное ревью и sanitizer-regression.
+
+Второй шаг функций активации — `sigmoid(Tensor<T> tensor)` с тем же ownership,
+metadata и sentinel-контрактом. Численная формула ветвится по знаку: для
+неотрицательных элементов используется `exp(-x)`, для отрицательных —
+`exp(x)`, чтобы не переполнять экспоненту на конечном входе. `NaN`
+распространяется, signed zero даёт `0.5`, infinities дают `0` и `1`. С
+появлением второй activation-функции sentinel-check и in-place transform
+вынесены в общий private helper,
+принимающий tensor по ссылке; конкретные численные формулы остаются в `relu` и
+`sigmoid`. Реализация покрыта `tests/sigmoid_test.cpp` и прошла полное ревью с
+sanitizer-regression.

@@ -209,3 +209,7 @@ add_test(NAME linear.forward COMMAND nn_linear_forward_test)
 add_executable(nn_relu_test relu_test.cpp)
 target_link_libraries(nn_relu_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME activation.relu COMMAND nn_relu_test)
+
+add_executable(nn_sigmoid_test sigmoid_test.cpp)
+target_link_libraries(nn_sigmoid_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME activation.sigmoid COMMAND nn_sigmoid_test)

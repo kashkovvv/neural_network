@@ -995,7 +995,7 @@ class Tensor {
 
     if (shape_ == other.shape_) {
       std::ranges::transform(storage_, other.storage_, storage_.begin(),
-                             operation);
+                             std::move(operation));
 
       return;
     }
@@ -1037,7 +1037,7 @@ class Tensor {
     shape_type result_shape = compute_broadcast_shape(shape_, other.shape_);
 
     if (result_shape == shape_) {
-      apply_elementwise_inplace(other, operation);
+      apply_elementwise_inplace(other, std::move(operation));
 
       return std::move(*this);
     }
