@@ -679,3 +679,15 @@ metadata и sentinel-контрактом. Численное преобразо
 axis и inner размеры за `O(numel)` времени и `O(1)` дополнительной памяти
 kernel. Реализация покрыта `tests/softmax_test.cpp` и прошла полное ревью с
 sanitizer-regression.
+
+Базовый этап функций активации завершён и отмечен в README. Текущий этап —
+функции потерь; первый шаг ограничен `mse_loss(Tensor<T> prediction,
+const Tensor<T>& target)`. Функция принимает floating-point тензоры строго
+одинаковой формы, запрещает broadcasting и возвращает rank-zero `Tensor<T>` со
+средним квадратом по всем элементам. Prediction является sink argument: lvalue
+копируется, rvalue потребляется; target принимается по `const&` и не изменяется.
+Rank-zero входы поддерживаются, одинаковые zero-extent формы дают scalar `NaN`,
+moved-from sentinel с любой стороны и несовпадение формы дают
+`std::invalid_argument`. Обычные `NaN`, infinity и overflow сохраняют native
+floating-point семантику. Реализация покрыта `tests/mse_loss_test.cpp` и прошла
+полное ревью с sanitizer-regression.

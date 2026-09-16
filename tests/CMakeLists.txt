@@ -221,3 +221,7 @@ add_test(NAME activation.tanh COMMAND nn_tanh_test)
 add_executable(nn_softmax_test softmax_test.cpp)
 target_link_libraries(nn_softmax_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME activation.softmax COMMAND nn_softmax_test)
+
+add_executable(nn_mse_loss_test mse_loss_test.cpp)
+target_link_libraries(nn_mse_loss_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME loss.mse COMMAND nn_mse_loss_test)
