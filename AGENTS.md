@@ -691,3 +691,13 @@ moved-from sentinel с любой стороны и несовпадение ф�
 `std::invalid_argument`. Обычные `NaN`, infinity и overflow сохраняют native
 floating-point семантику. Реализация покрыта `tests/mse_loss_test.cpp` и прошла
 полное ревью с sanitizer-regression.
+
+Текущий шаг функций потерь — `mae_loss(Tensor<T> prediction,
+const Tensor<T>& target)`, возвращающий rank-zero среднее абсолютных разностей.
+Он повторяет exact-shape, ownership, sentinel, rank-zero и zero-extent контракт
+`mse_loss`; broadcasting запрещён, native floating-point поведение сохраняется,
+а конечная абсолютная ошибка неотрицательна и превращает signed zero в `+0`.
+С появлением второго elementwise loss общая проверка двух sentinel и точного
+равенства форм вынесена в private helper
+`validate_elementwise_loss_inputs`. Реализация покрыта
+`tests/mae_loss_test.cpp` и прошла полное ревью с sanitizer-regression.

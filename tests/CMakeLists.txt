@@ -225,3 +225,7 @@ add_test(NAME activation.softmax COMMAND nn_softmax_test)
 add_executable(nn_mse_loss_test mse_loss_test.cpp)
 target_link_libraries(nn_mse_loss_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME loss.mse COMMAND nn_mse_loss_test)
+
+add_executable(nn_mae_loss_test mae_loss_test.cpp)
+target_link_libraries(nn_mae_loss_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME loss.mae COMMAND nn_mae_loss_test)
