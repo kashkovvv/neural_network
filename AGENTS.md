@@ -593,3 +593,29 @@ storage и дают mutable/const, forward/reverse доступ через `begi
 и moved-from sentinel — пустой диапазон. `reshape` сохраняет валидность
 итераторов, поскольку не меняет storage. Итераторы `TensorView` отложены до
 отдельного проектирования логического обхода произвольных strided views.
+
+Текущий этап — `Linear<T>`. Первый небольшой шаг ограничен состоянием и
+конструкторным контрактом. Слой владеет rank-two weights формы
+`{in_features, out_features}` и опциональным rank-one bias формы
+`{out_features}`. Готовые параметры принимаются по значению как sink arguments:
+lvalue копируются, rvalue перемещаются. Конструктор имеет `explicit`,
+zero-extent feature dimensions разрешены, несовместимые rank и shape
+отклоняются через `std::invalid_argument`. Read-only accessors возвращают веса
+и `std::optional` bias только из lvalue слоя; `in_features()` и
+`out_features()` возвращают размеры по значению. Тесты этого контракта
+подготовлены в `tests/linear_construction_test.cpp`.
+
+Состояние и конструктор `Linear<T>` реализованы. Copy construction копирует
+полное согласованное состояние, а copy assignment обеспечивает strong exception
+guarantee через copy-and-swap, поскольку последовательное присваивание weights
+и bias могло бы нарушить их shape-инвариант при ошибке аллокации. Move
+construction и move assignment имеют `noexcept` и оставляют источник в
+каноническом empty sentinel: moved-from weights и отсутствующий bias. Его
+read-only accessors безопасны, `in_features()` и `out_features()` возвращают
+ноль, объект можно копировать, перемещать и переназначать. Member `swap` и
+свободный ADL-visible `swap` обменивают полные состояния без исключений.
+
+После принятия конструктора forward проектируется отдельно: вход rank one
+обрабатывается через `vecmat`, вход rank не меньше двух — через `matmul`, bias
+добавляется существующим right-aligned broadcasting. Такой путь сохраняет все
+ведущие оси и не требует reshape или transpose.
