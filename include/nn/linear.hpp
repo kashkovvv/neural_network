@@ -29,7 +29,7 @@ class Linear {
                   std::optional<tensor_type> bias = std::nullopt)
       : weights_(std::move(weights)), bias_(std::move(bias)) {
     if (weights_.rank() != 2) {
-      throw std::invalid_argument("Linear weights must have rank 2");
+      throw std::invalid_argument("linear weights must have rank 2");
     }
 
     if (!bias_) {
@@ -37,12 +37,12 @@ class Linear {
     }
 
     if (bias_->rank() != 1) {
-      throw std::invalid_argument("Linear bias must have rank 1");
+      throw std::invalid_argument("linear bias must have rank 1");
     }
 
     if (bias_->numel() != out_features()) {
       throw std::invalid_argument(
-          "Linear bias numel does not match out_features");
+          "linear bias numel does not match out_features");
     }
   }
 
@@ -104,6 +104,17 @@ class Linear {
 
   const std::optional<tensor_type>& bias() && = delete;
   const std::optional<tensor_type>& bias() const&& = delete;
+
+  [[nodiscard]] tensor_type operator()(const tensor_type& input) const& {
+    tensor_type result =
+        input.rank() == 1 ? input.vecmat(weights_) : input.matmul(weights_);
+
+    if (bias_) {
+      result += *bias_;
+    }
+
+    return result;
+  }
 
  private:
   [[nodiscard]] bool is_empty_sentinel() const noexcept {

@@ -201,3 +201,7 @@ add_test(NAME tensor.matmul_property COMMAND nn_tensor_matmul_property_test)
 add_executable(nn_linear_construction_test linear_construction_test.cpp)
 target_link_libraries(nn_linear_construction_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME linear.construction COMMAND nn_linear_construction_test)
+
+add_executable(nn_linear_forward_test linear_forward_test.cpp)
+target_link_libraries(nn_linear_forward_test PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME linear.forward COMMAND nn_linear_forward_test)
