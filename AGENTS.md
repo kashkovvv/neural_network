@@ -701,3 +701,15 @@ const Tensor<T>& target)`, возвращающий rank-zero среднее а�
 равенства форм вынесена в private helper
 `validate_elementwise_loss_inputs`. Реализация покрыта
 `tests/mae_loss_test.cpp` и прошла полное ревью с sanitizer-regression.
+
+Реализован стандартный
+`huber_loss(Tensor<T> prediction, const Tensor<T>& target,
+Tensor<T>::value_type delta = T{1})`. Для `abs(error) <= delta` используется
+квадратичная ветвь `0.5 * error²`, за порогом — линейная
+`delta * (abs(error) - 0.5 * delta)`; на границе совпадают значение и
+производная. `delta` должен быть конечным и строго положительным, иначе функция
+бросает `std::domain_error`. Остальной exact-shape, ownership, sentinel,
+rank-zero, zero-extent и native floating-point контракт совпадает с MSE/MAE.
+Квадратичная ветвь должна применять множитель `0.5` до второго умножения, чтобы
+не создавать преждевременный overflow. Реализация покрыта
+`tests/huber_loss_test.cpp` и прошла полное ревью с sanitizer-regression.

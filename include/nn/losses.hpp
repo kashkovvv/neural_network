@@ -53,4 +53,29 @@ template <std::floating_point T>
   return prediction.mean();
 }
 
+template <std::floating_point T>
+[[nodiscard]] Tensor<T> huber_loss(Tensor<T> prediction,
+                                   const Tensor<T>& target,
+                                   typename Tensor<T>::value_type delta = T{
+                                       1}) {
+  detail::validate_elementwise_loss_inputs(prediction, target);
+
+  if (delta <= T{} || !std::isfinite(delta)) {
+    throw std::domain_error("huber loss delta must be finite and positive");
+  }
+
+  prediction -= target;
+  std::ranges::transform(prediction, prediction.begin(), [delta](T error) {
+    const T absolute_error = std::abs(error);
+
+    if (absolute_error <= delta) {
+      return (T{0.5} * error) * error;
+    }
+
+    return delta * (absolute_error - T{0.5} * delta);
+  });
+
+  return prediction.mean();
+}
+
 }  // namespace nn
