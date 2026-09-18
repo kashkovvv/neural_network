@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <cmath>
 #include <concepts>
+#include <span>
 #include <stdexcept>
 
+#include "nn/detail/compensated_accumulator.hpp"
 #include "nn/tensor.hpp"
 
 namespace nn::detail {
@@ -31,14 +33,30 @@ void validate_elementwise_loss_inputs(const Tensor<T>& prediction,
 namespace nn {
 
 template <std::floating_point T>
-[[nodiscard]] Tensor<T> mse_loss(Tensor<T> prediction,
+[[nodiscard]] Tensor<T> mse_loss(const Tensor<T>& prediction,
                                  const Tensor<T>& target) {
   detail::validate_elementwise_loss_inputs(prediction, target);
 
-  prediction -= target;
-  prediction *= prediction;
+  using size_type = typename Tensor<T>::size_type;
 
-  return prediction.mean();
+  const std::span<const T> prediction_elements = prediction.elements();
+  const std::span<const T> target_elements = target.elements();
+  const size_type element_count = prediction.numel();
+  detail::CompensatedAccumulator<T> accumulator;
+
+  for (size_type element_index = 0; element_index < element_count;
+       ++element_index) {
+    const T error =
+        prediction_elements[element_index] - target_elements[element_index];
+    const T squared_error = error * error;
+
+    accumulator.add(squared_error);
+  }
+
+  const T mean_squared_error =
+      accumulator.result() / static_cast<T>(element_count);
+
+  return Tensor<T>::scalar(mean_squared_error);
 }
 
 template <std::floating_point T>

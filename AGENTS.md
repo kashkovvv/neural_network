@@ -682,12 +682,14 @@ kernel. Реализация покрыта `tests/softmax_test.cpp` и прош
 sanitizer-regression.
 
 Базовый этап функций активации завершён и отмечен в README. Текущий этап —
-функции потерь; первый шаг ограничен `mse_loss(Tensor<T> prediction,
+функции потерь. Реализован `mse_loss(const Tensor<T>& prediction,
 const Tensor<T>& target)`. Функция принимает floating-point тензоры строго
 одинаковой формы, запрещает broadcasting и возвращает rank-zero `Tensor<T>` со
-средним квадратом по всем элементам. Prediction является sink argument: lvalue
-копируется, rvalue потребляется; target принимается по `const&` и не изменяется.
-Rank-zero входы поддерживаются, одинаковые zero-extent формы дают scalar `NaN`,
+средним квадратом по всем элементам. Оба входа только читаются, а rvalue не
+потребляются. Loss вычисляется за один проход без промежуточного tensor и
+накапливается через `detail::CompensatedAccumulator<T>` за `O(N)` времени и
+`O(1)` дополнительной памяти. Rank-zero входы поддерживаются, одинаковые
+zero-extent формы дают scalar `NaN`,
 moved-from sentinel с любой стороны и несовпадение формы дают
 `std::invalid_argument`. Обычные `NaN`, infinity и overflow сохраняют native
 floating-point семантику. Реализация покрыта `tests/mse_loss_test.cpp` и прошла
@@ -695,8 +697,9 @@ floating-point семантику. Реализация покрыта `tests/ms
 
 Реализован `mae_loss(Tensor<T> prediction,
 const Tensor<T>& target)`, возвращающий rank-zero среднее абсолютных разностей.
-Он повторяет exact-shape, ownership, sentinel, rank-zero и zero-extent контракт
-`mse_loss`; broadcasting запрещён, native floating-point поведение сохраняется,
+Он повторяет exact-shape, sentinel, rank-zero и zero-extent контракт
+`mse_loss`, но пока ещё принимает prediction по значению как sink argument.
+Broadcasting запрещён, native floating-point поведение сохраняется,
 а конечная абсолютная ошибка неотрицательна и превращает signed zero в `+0`.
 С появлением второго elementwise loss общая проверка двух sentinel и точного
 равенства форм вынесена в private helper
@@ -709,8 +712,9 @@ Tensor<T>::value_type delta = T{1})`. Для `abs(error) <= delta` исполь�
 квадратичная ветвь `0.5 * error²`, за порогом — линейная
 `delta * (abs(error) - 0.5 * delta)`; на границе совпадают значение и
 производная. `delta` должен быть конечным и строго положительным, иначе функция
-бросает `std::domain_error`. Остальной exact-shape, ownership, sentinel,
-rank-zero, zero-extent и native floating-point контракт совпадает с MSE/MAE.
+бросает `std::domain_error`. Остальной exact-shape, sentinel, rank-zero,
+zero-extent и native floating-point контракт совпадает с MSE/MAE; ownership пока
+совпадает с MAE.
 Квадратичная ветвь должна применять множитель `0.5` до второго умножения, чтобы
 не создавать преждевременный overflow. Реализация покрыта
 `tests/huber_loss_test.cpp` и прошла полное ревью с sanitizer-regression.
@@ -721,14 +725,15 @@ const Tensor<T>& target)`. Формы должны точно совпадать
 поддерживаются. Функция возвращает rank-zero среднее и вычисляет BCE напрямую
 от logits без промежуточного sigmoid. Exact matching targets для бесконечных
 logits должны давать нулевую потерю, остальные несовпадающие конечные targets —
-`+infinity`; `NaN` logits распространяется. Ownership, sentinel, rank-zero и
-zero-extent контракт совпадает с остальными elementwise losses. Реализация
+`+infinity`; `NaN` logits распространяется. Sentinel, rank-zero и zero-extent контракт
+совпадает с остальными elementwise losses; logits пока принимается по значению как
+sink argument. Реализация
 покрыта `tests/binary_cross_entropy_with_logits_test.cpp` и прошла полное ревью
 с sanitizer-regression.
 
 Перед categorical cross-entropy выполняется общий рефакторинг scalar losses.
 Kahan–Babuška–Neumaier accumulator вынесен из private-части `Tensor` в
 `include/nn/detail/compensated_accumulator.hpp` без изменения алгоритма и
-существующего поведения. Следующий шаг — перевести MSE, MAE, Huber и BCE на
-прямые read-only kernels с входами по `const&`, без промежуточного tensor и с
-`O(1)` дополнительной памятью.
+существующего поведения. MSE уже переведён на прямой read-only kernel с входами
+по `const&`, без промежуточного tensor и с `O(1)` дополнительной памятью.
+Следующий шаг — аналогично перевести MAE.
