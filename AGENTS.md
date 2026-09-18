@@ -709,15 +709,17 @@ const Tensor<T>& target)`, возвращающий rank-zero среднее а�
 `tests/mae_loss_test.cpp` и прошла полное ревью с sanitizer-regression.
 
 Реализован стандартный
-`huber_loss(Tensor<T> prediction, const Tensor<T>& target,
+`huber_loss(const Tensor<T>& prediction, const Tensor<T>& target,
 Tensor<T>::value_type delta = T{1})`. Для `abs(error) <= delta` используется
 квадратичная ветвь `0.5 * error²`, за порогом — линейная
 `delta * (abs(error) - 0.5 * delta)`; на границе совпадают значение и
 производная. `delta` должен быть конечным и строго положительным, иначе функция
 бросает `std::domain_error`. Остальной exact-shape, sentinel, rank-zero,
-zero-extent и native floating-point контракт совпадает с MSE/MAE; prediction
-пока принимается по значению как sink argument, в отличие от уже переведённых
-MSE и MAE.
+zero-extent и native floating-point контракт совпадает с MSE/MAE; оба входа
+только читаются, а rvalue не потребляются. Loss вычисляется за один проход без
+промежуточного tensor и накапливается через
+`detail::CompensatedAccumulator<T>` за `O(N)` времени и `O(1)` дополнительной
+памяти.
 Квадратичная ветвь должна применять множитель `0.5` до второго умножения, чтобы
 не создавать преждевременный overflow. Реализация покрыта
 `tests/huber_loss_test.cpp` и прошла полное ревью с sanitizer-regression.
@@ -737,6 +739,7 @@ sink argument. Реализация
 Перед categorical cross-entropy выполняется общий рефакторинг scalar losses.
 Kahan–Babuška–Neumaier accumulator вынесен из private-части `Tensor` в
 `include/nn/detail/compensated_accumulator.hpp` без изменения алгоритма и
-существующего поведения. MSE и MAE переведены на прямые read-only kernels с
-входами по `const&`, без промежуточного tensor и с `O(1)` дополнительной
-памятью. Следующий шаг — аналогично перевести Huber loss.
+существующего поведения. MSE, MAE и Huber loss переведены на прямые read-only
+kernels с входами по `const&`, без промежуточного tensor и с `O(1)`
+дополнительной памятью. Следующий шаг — аналогично перевести binary
+cross-entropy with logits.

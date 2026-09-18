@@ -87,7 +87,7 @@ template <std::floating_point T>
 }
 
 template <std::floating_point T>
-[[nodiscard]] Tensor<T> huber_loss(Tensor<T> prediction,
+[[nodiscard]] Tensor<T> huber_loss(const Tensor<T>& prediction,
                                    const Tensor<T>& target,
                                    typename Tensor<T>::value_type delta = T{
                                        1}) {
@@ -97,18 +97,30 @@ template <std::floating_point T>
     throw std::domain_error("huber loss delta must be finite and positive");
   }
 
-  prediction -= target;
-  std::ranges::transform(prediction, prediction.begin(), [delta](T error) {
+  using size_type = typename Tensor<T>::size_type;
+
+  const std::span<const T> prediction_elements = prediction.elements();
+  const std::span<const T> target_elements = target.elements();
+  const size_type element_count = prediction.numel();
+  detail::CompensatedAccumulator<T> accumulator;
+
+  for (size_type element_index = 0; element_index < element_count;
+       ++element_index) {
+    const T error =
+        prediction_elements[element_index] - target_elements[element_index];
     const T absolute_error = std::abs(error);
+    const T element_loss =
+        absolute_error <= delta
+            ? (T{0.5} * error) * error
+            : delta * (absolute_error - T{0.5} * delta);
 
-    if (absolute_error <= delta) {
-      return (T{0.5} * error) * error;
-    }
+    accumulator.add(element_loss);
+  }
 
-    return delta * (absolute_error - T{0.5} * delta);
-  });
+  const T mean_huber_loss =
+      accumulator.result() / static_cast<T>(element_count);
 
-  return prediction.mean();
+  return Tensor<T>::scalar(mean_huber_loss);
 }
 
 template <std::floating_point T>

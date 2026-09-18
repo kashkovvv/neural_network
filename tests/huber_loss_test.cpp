@@ -15,6 +15,7 @@ namespace {
 using Tensor = nn::Tensor<float>;
 using DoubleTensor = nn::Tensor<double>;
 using IntegerTensor = nn::Tensor<int>;
+using HuberLossFunction = Tensor (*)(const Tensor&, const Tensor&, float);
 
 template <typename Prediction, typename Target>
 concept CanComputeDefaultHuberLoss = requires {
@@ -31,6 +32,8 @@ static_assert(
     std::same_as<decltype(nn::huber_loss(std::declval<const Tensor&>(),
                                         std::declval<const Tensor&>())),
                  Tensor>);
+static_assert(
+    std::same_as<decltype(&nn::huber_loss<float>), HuberLossFunction>);
 static_assert(CanComputeDefaultHuberLoss<Tensor&, Tensor&>);
 static_assert(CanComputeDefaultHuberLoss<const Tensor&, const Tensor&>);
 static_assert(CanComputeDefaultHuberLoss<Tensor&&, const Tensor&>);
@@ -280,7 +283,17 @@ void test_huber_loss_uses_native_floating_point_behavior() {
          "Huber loss did not preserve native floating-point overflow");
 }
 
-void test_huber_loss_consumes_rvalue_prediction() {
+void test_huber_loss_uses_compensated_accumulation() {
+  const Tensor result = nn::huber_loss(
+      Tensor::from_data(
+          {5}, {16777216.0F, 1.5F, 1.5F, 1.5F, 1.5F}),
+      Tensor::zeros({5}));
+
+  expect_scalar_near(result, 3355444.0F, 0.0F,
+                     "Huber loss did not compensate its loss accumulation");
+}
+
+void test_huber_loss_does_not_consume_rvalue_prediction() {
   Tensor prediction = Tensor::from_data({2}, {3.0F, 5.0F});
   const Tensor target = Tensor::from_data({2}, {1.0F, 1.0F});
 
@@ -289,10 +302,12 @@ void test_huber_loss_consumes_rvalue_prediction() {
   expect_scalar_near(
       result, 2.5F, 1.0e-6F,
       "rvalue-prediction Huber loss produced an inaccurate value");
-  expect_empty_sentinel(prediction);
+  expect(std::ranges::equal(prediction.elements(),
+                            Tensor::storage_type{3.0F, 5.0F}),
+         "Huber loss consumed its rvalue prediction");
 }
 
-void test_huber_loss_copies_const_rvalue_prediction() {
+void test_huber_loss_does_not_consume_const_rvalue_prediction() {
   const Tensor prediction = Tensor::from_data({2}, {3.0F, 5.0F});
   const Tensor target = Tensor::from_data({2}, {1.0F, 1.0F});
 
@@ -358,8 +373,9 @@ int main() {
     test_huber_loss_rejects_broadcasting_and_different_shapes();
     test_huber_loss_returns_nan_for_equal_zero_extent_shapes();
     test_huber_loss_uses_native_floating_point_behavior();
-    test_huber_loss_consumes_rvalue_prediction();
-    test_huber_loss_copies_const_rvalue_prediction();
+    test_huber_loss_uses_compensated_accumulation();
+    test_huber_loss_does_not_consume_rvalue_prediction();
+    test_huber_loss_does_not_consume_const_rvalue_prediction();
     test_huber_loss_does_not_consume_rvalue_target();
     test_huber_loss_rejects_moved_from_sentinels();
   } catch (const std::exception& exception) {
