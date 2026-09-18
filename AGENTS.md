@@ -695,14 +695,16 @@ moved-from sentinel с любой стороны и несовпадение ф�
 floating-point семантику. Реализация покрыта `tests/mse_loss_test.cpp` и прошла
 полное ревью с sanitizer-regression.
 
-Реализован `mae_loss(Tensor<T> prediction,
+Реализован `mae_loss(const Tensor<T>& prediction,
 const Tensor<T>& target)`, возвращающий rank-zero среднее абсолютных разностей.
 Он повторяет exact-shape, sentinel, rank-zero и zero-extent контракт
-`mse_loss`, но пока ещё принимает prediction по значению как sink argument.
-Broadcasting запрещён, native floating-point поведение сохраняется,
-а конечная абсолютная ошибка неотрицательна и превращает signed zero в `+0`.
-С появлением второго elementwise loss общая проверка двух sentinel и точного
-равенства форм вынесена в private helper
+`mse_loss`; оба входа только читаются, а rvalue не потребляются. Broadcasting
+запрещён, native floating-point поведение сохраняется, а конечная абсолютная
+ошибка неотрицательна и превращает signed zero в `+0`. Loss вычисляется за один
+проход без промежуточного tensor и накапливается через
+`detail::CompensatedAccumulator<T>` за `O(N)` времени и `O(1)` дополнительной
+памяти. С появлением второго elementwise loss общая проверка двух sentinel и
+точного равенства форм вынесена в private helper
 `validate_elementwise_loss_inputs`. Реализация покрыта
 `tests/mae_loss_test.cpp` и прошла полное ревью с sanitizer-regression.
 
@@ -713,8 +715,9 @@ Tensor<T>::value_type delta = T{1})`. Для `abs(error) <= delta` исполь�
 `delta * (abs(error) - 0.5 * delta)`; на границе совпадают значение и
 производная. `delta` должен быть конечным и строго положительным, иначе функция
 бросает `std::domain_error`. Остальной exact-shape, sentinel, rank-zero,
-zero-extent и native floating-point контракт совпадает с MSE/MAE; ownership пока
-совпадает с MAE.
+zero-extent и native floating-point контракт совпадает с MSE/MAE; prediction
+пока принимается по значению как sink argument, в отличие от уже переведённых
+MSE и MAE.
 Квадратичная ветвь должна применять множитель `0.5` до второго умножения, чтобы
 не создавать преждевременный overflow. Реализация покрыта
 `tests/huber_loss_test.cpp` и прошла полное ревью с sanitizer-regression.
@@ -734,6 +737,6 @@ sink argument. Реализация
 Перед categorical cross-entropy выполняется общий рефакторинг scalar losses.
 Kahan–Babuška–Neumaier accumulator вынесен из private-части `Tensor` в
 `include/nn/detail/compensated_accumulator.hpp` без изменения алгоритма и
-существующего поведения. MSE уже переведён на прямой read-only kernel с входами
-по `const&`, без промежуточного tensor и с `O(1)` дополнительной памятью.
-Следующий шаг — аналогично перевести MAE.
+существующего поведения. MSE и MAE переведены на прямые read-only kernels с
+входами по `const&`, без промежуточного tensor и с `O(1)` дополнительной
+памятью. Следующий шаг — аналогично перевести Huber loss.

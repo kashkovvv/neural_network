@@ -60,15 +60,30 @@ template <std::floating_point T>
 }
 
 template <std::floating_point T>
-[[nodiscard]] Tensor<T> mae_loss(Tensor<T> prediction,
+[[nodiscard]] Tensor<T> mae_loss(const Tensor<T>& prediction,
                                  const Tensor<T>& target) {
   detail::validate_elementwise_loss_inputs(prediction, target);
 
-  prediction -= target;
-  std::ranges::transform(prediction, prediction.begin(),
-                         [](T error) { return std::abs(error); });
+  using size_type = typename Tensor<T>::size_type;
 
-  return prediction.mean();
+  const std::span<const T> prediction_elements = prediction.elements();
+  const std::span<const T> target_elements = target.elements();
+  const size_type element_count = prediction.numel();
+  detail::CompensatedAccumulator<T> accumulator;
+
+  for (size_type element_index = 0; element_index < element_count;
+       ++element_index) {
+    const T error =
+        prediction_elements[element_index] - target_elements[element_index];
+    const T absolute_error = std::abs(error);
+
+    accumulator.add(absolute_error);
+  }
+
+  const T mean_absolute_error =
+      accumulator.result() / static_cast<T>(element_count);
+
+  return Tensor<T>::scalar(mean_absolute_error);
 }
 
 template <std::floating_point T>
