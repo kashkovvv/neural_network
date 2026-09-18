@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+#include "nn/detail/compensated_accumulator.hpp"
 #include "nn/detail/tensor_concepts.hpp"
 #include "nn/detail/tensor_indexing.hpp"
 #include "nn/tensor_view.hpp"
@@ -306,7 +307,7 @@ class Tensor {
   {
     validate_not_empty_sentinel();
 
-    CompensatedAccumulator accumulator;
+    detail::CompensatedAccumulator<value_type> accumulator;
 
     for (value_type element : storage_) {
       accumulator.add(element);
@@ -487,7 +488,7 @@ class Tensor {
       throw std::invalid_argument("dot requires tensors with equal numel");
     }
 
-    CompensatedAccumulator accumulator;
+    detail::CompensatedAccumulator<value_type> accumulator;
 
     for (size_type element_index = 0; element_index < numel();
          ++element_index) {
@@ -520,7 +521,7 @@ class Tensor {
     result_storage.reserve(row_count);
 
     for (size_type row_index = 0; row_index < row_count; ++row_index) {
-      CompensatedAccumulator accumulator;
+      detail::CompensatedAccumulator<value_type> accumulator;
       const size_type row_offset = row_index * strides_[0];
 
       for (size_type column_index = 0; column_index < column_count;
@@ -559,7 +560,8 @@ class Tensor {
       return Tensor(shape_type{column_count});
     }
 
-    std::vector<CompensatedAccumulator> accumulators(column_count);
+    std::vector<detail::CompensatedAccumulator<value_type>> accumulators(
+        column_count);
 
     for (size_type inner_index = 0; inner_index < inner_extent; ++inner_index) {
       const value_type vector_value = storage_[inner_index];
@@ -575,7 +577,8 @@ class Tensor {
     storage_type result_storage;
     result_storage.reserve(column_count);
 
-    for (const CompensatedAccumulator& accumulator : accumulators) {
+    for (const detail::CompensatedAccumulator<value_type>& accumulator :
+         accumulators) {
       result_storage.push_back(accumulator.result());
     }
 
@@ -674,7 +677,8 @@ class Tensor {
     storage_type result_storage;
     result_storage.reserve(result_element_count);
 
-    std::vector<CompensatedAccumulator> result_row_accumulators(column_count);
+    std::vector<detail::CompensatedAccumulator<value_type>>
+        result_row_accumulators(column_count);
 
     for (size_type batch_index = 0; batch_index < batch_count; ++batch_index) {
       const size_type result_batch_offset =
@@ -719,9 +723,10 @@ class Tensor {
           }
         }
 
-        for (CompensatedAccumulator& accumulator : result_row_accumulators) {
+        for (detail::CompensatedAccumulator<value_type>& accumulator :
+             result_row_accumulators) {
           result_storage.push_back(accumulator.result());
-          accumulator = CompensatedAccumulator{};
+          accumulator = detail::CompensatedAccumulator<value_type>{};
         }
       }
     }
@@ -918,35 +923,6 @@ class Tensor {
   struct Layout {
     strides_type strides;
     size_type element_count;
-  };
-
-  class CompensatedAccumulator {
-   public:
-    void add(value_type value) {
-      const value_type next_sum = sum_ + value;
-
-      if (!std::isfinite(sum_) || !std::isfinite(value) ||
-          !std::isfinite(next_sum)) {
-        sum_ = next_sum;
-        correction_ = value_type{};
-
-        return;
-      }
-
-      if (std::abs(sum_) >= std::abs(value)) {
-        correction_ += (sum_ - next_sum) + value;
-      } else {
-        correction_ += (value - next_sum) + sum_;
-      }
-
-      sum_ = next_sum;
-    }
-
-    [[nodiscard]] value_type result() const { return sum_ + correction_; }
-
-   private:
-    value_type sum_{};
-    value_type correction_{};
   };
 
   Tensor(shape_type shape, const value_type& fill_value)
@@ -1296,7 +1272,7 @@ class Tensor {
     storage_type result_storage;
     result_storage.reserve(result_layout.element_count);
 
-    std::vector<CompensatedAccumulator> accumulators(
+    std::vector<detail::CompensatedAccumulator<value_type>> accumulators(
         result_layout.element_count);
 
     for (size_type source_offset = 0; source_offset < numel();
@@ -1309,7 +1285,8 @@ class Tensor {
       accumulators[result_offset].add(storage_[source_offset]);
     }
 
-    for (const CompensatedAccumulator& accumulator : accumulators) {
+    for (const detail::CompensatedAccumulator<value_type>& accumulator :
+         accumulators) {
       result_storage.push_back(accumulator.result());
     }
 

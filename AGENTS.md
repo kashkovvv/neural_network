@@ -459,9 +459,10 @@ infinity и переполнения конечного сложения сох�
 не является гарантией API.
 
 All-element `sum()` переведён на Kahan–Babuška–Neumaier accumulation через
-private `CompensatedAccumulator`. Состояние `sum`/`correction` инкапсулировано,
-value-initialized и обновляется единым `add`; при `NaN`, infinity или overflow
-компенсация сбрасывается. Реализация прошла полное ревью и sanitizer-regression.
+общий `detail::CompensatedAccumulator`. Состояние `sum`/`correction`
+инкапсулировано, value-initialized и обновляется единым `add`; при `NaN`,
+infinity или overflow компенсация сбрасывается. Реализация прошла полное ревью
+и sanitizer-regression.
 
 Axis-aware `sum(axes, keepdims)` переведён на независимый
 Kahan–Babuška–Neumaier accumulator для каждой выходной ячейки. Публичный
@@ -724,3 +725,10 @@ logits должны давать нулевую потерю, остальные
 zero-extent контракт совпадает с остальными elementwise losses. Реализация
 покрыта `tests/binary_cross_entropy_with_logits_test.cpp` и прошла полное ревью
 с sanitizer-regression.
+
+Перед categorical cross-entropy выполняется общий рефакторинг scalar losses.
+Kahan–Babuška–Neumaier accumulator вынесен из private-части `Tensor` в
+`include/nn/detail/compensated_accumulator.hpp` без изменения алгоритма и
+существующего поведения. Следующий шаг — перевести MSE, MAE, Huber и BCE на
+прямые read-only kernels с входами по `const&`, без промежуточного tensor и с
+`O(1)` дополнительной памятью.
