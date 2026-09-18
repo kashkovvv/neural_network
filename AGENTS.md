@@ -692,7 +692,7 @@ moved-from sentinel с любой стороны и несовпадение ф�
 floating-point семантику. Реализация покрыта `tests/mse_loss_test.cpp` и прошла
 полное ревью с sanitizer-regression.
 
-Текущий шаг функций потерь — `mae_loss(Tensor<T> prediction,
+Реализован `mae_loss(Tensor<T> prediction,
 const Tensor<T>& target)`, возвращающий rank-zero среднее абсолютных разностей.
 Он повторяет exact-shape, ownership, sentinel, rank-zero и zero-extent контракт
 `mse_loss`; broadcasting запрещён, native floating-point поведение сохраняется,
@@ -713,3 +713,14 @@ rank-zero, zero-extent и native floating-point контракт совпада�
 Квадратичная ветвь должна применять множитель `0.5` до второго умножения, чтобы
 не создавать преждевременный overflow. Реализация покрыта
 `tests/huber_loss_test.cpp` и прошла полное ревью с sanitizer-regression.
+
+Реализован `binary_cross_entropy_with_logits(Tensor<T> logits,
+const Tensor<T>& target)`. Формы должны точно совпадать, broadcasting запрещён,
+а каждый target должен быть конечным и принадлежать `[0, 1]`; soft labels
+поддерживаются. Функция возвращает rank-zero среднее и вычисляет BCE напрямую
+от logits без промежуточного sigmoid. Exact matching targets для бесконечных
+logits должны давать нулевую потерю, остальные несовпадающие конечные targets —
+`+infinity`; `NaN` logits распространяется. Ownership, sentinel, rank-zero и
+zero-extent контракт совпадает с остальными elementwise losses. Реализация
+покрыта `tests/binary_cross_entropy_with_logits_test.cpp` и прошла полное ревью
+с sanitizer-regression.

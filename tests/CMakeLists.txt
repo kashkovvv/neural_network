@@ -233,3 +233,10 @@ add_test(NAME loss.mae COMMAND nn_mae_loss_test)
 add_executable(nn_huber_loss_test huber_loss_test.cpp)
 target_link_libraries(nn_huber_loss_test PRIVATE nn nn_warnings nn_sanitizers)
 add_test(NAME loss.huber COMMAND nn_huber_loss_test)
+
+add_executable(nn_binary_cross_entropy_with_logits_test
+               binary_cross_entropy_with_logits_test.cpp)
+target_link_libraries(nn_binary_cross_entropy_with_logits_test
+                      PRIVATE nn nn_warnings nn_sanitizers)
+add_test(NAME loss.binary_cross_entropy_with_logits
+         COMMAND nn_binary_cross_entropy_with_logits_test)

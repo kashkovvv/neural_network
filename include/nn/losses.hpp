@@ -78,4 +78,39 @@ template <std::floating_point T>
   return prediction.mean();
 }
 
+template <std::floating_point T>
+[[nodiscard]] Tensor<T> binary_cross_entropy_with_logits(
+    Tensor<T> logits, const Tensor<T>& target) {
+  detail::validate_elementwise_loss_inputs(logits, target);
+
+  if (!std::ranges::all_of(target, [](T target_value) {
+        return target_value >= T{} && target_value <= T{1};
+      })) {
+    throw std::domain_error("binary cross entropy target must be in [0, 1]");
+  }
+
+  std::ranges::transform(
+      logits, target, logits.begin(), [](T logit, T target_value) {
+        if (logit >= T{}) {
+          const T softplus_term = std::log1p(std::exp(-logit));
+
+          if (target_value == T{1}) {
+            return softplus_term;
+          }
+
+          return (T{1} - target_value) * logit + softplus_term;
+        }
+
+        const T softplus_term = std::log1p(std::exp(logit));
+
+        if (target_value == T{}) {
+          return softplus_term;
+        }
+
+        return -target_value * logit + softplus_term;
+      });
+
+  return logits.mean();
+}
+
 }  // namespace nn
