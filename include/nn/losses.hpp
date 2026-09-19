@@ -109,10 +109,9 @@ template <std::floating_point T>
     const T error =
         prediction_elements[element_index] - target_elements[element_index];
     const T absolute_error = std::abs(error);
-    const T element_loss =
-        absolute_error <= delta
-            ? (T{0.5} * error) * error
-            : delta * (absolute_error - T{0.5} * delta);
+    const T element_loss = absolute_error <= delta
+                               ? (T{0.5} * error) * error
+                               : delta * (absolute_error - T{0.5} * delta);
 
     accumulator.add(element_loss);
   }
@@ -125,37 +124,40 @@ template <std::floating_point T>
 
 template <std::floating_point T>
 [[nodiscard]] Tensor<T> binary_cross_entropy_with_logits(
-    Tensor<T> logits, const Tensor<T>& target) {
+    const Tensor<T>& logits, const Tensor<T>& target) {
   detail::validate_elementwise_loss_inputs(logits, target);
 
-  if (!std::ranges::all_of(target, [](T target_value) {
-        return target_value >= T{} && target_value <= T{1};
-      })) {
-    throw std::domain_error("binary cross entropy target must be in [0, 1]");
+  using size_type = typename Tensor<T>::size_type;
+
+  const std::span<const T> logits_elements = logits.elements();
+  const std::span<const T> target_elements = target.elements();
+  const size_type element_count = logits.numel();
+  detail::CompensatedAccumulator<T> accumulator;
+
+  for (size_type element_index = 0; element_index < element_count;
+       ++element_index) {
+    const T logit = logits_elements[element_index];
+    const T target_value = target_elements[element_index];
+
+    if (!(target_value >= T{} && target_value <= T{1})) {
+      throw std::domain_error("binary cross entropy target must be in [0, 1]");
+    }
+
+    T element_loss = std::log1p(std::exp(-std::abs(logit)));
+
+    if (logit >= T{} && target_value != T{1}) {
+      element_loss += (T{1} - target_value) * logit;
+    } else if (logit < T{} && target_value != T{}) {
+      element_loss += -target_value * logit;
+    }
+
+    accumulator.add(element_loss);
   }
 
-  std::ranges::transform(
-      logits, target, logits.begin(), [](T logit, T target_value) {
-        if (logit >= T{}) {
-          const T softplus_term = std::log1p(std::exp(-logit));
+  const T mean_binary_cross_entropy_with_logits_loss =
+      accumulator.result() / static_cast<T>(element_count);
 
-          if (target_value == T{1}) {
-            return softplus_term;
-          }
-
-          return (T{1} - target_value) * logit + softplus_term;
-        }
-
-        const T softplus_term = std::log1p(std::exp(logit));
-
-        if (target_value == T{}) {
-          return softplus_term;
-        }
-
-        return -target_value * logit + softplus_term;
-      });
-
-  return logits.mean();
+  return Tensor<T>::scalar(mean_binary_cross_entropy_with_logits_loss);
 }
 
 }  // namespace nn

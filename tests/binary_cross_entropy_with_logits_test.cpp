@@ -15,6 +15,8 @@ namespace {
 using Tensor = nn::Tensor<float>;
 using DoubleTensor = nn::Tensor<double>;
 using IntegerTensor = nn::Tensor<int>;
+using BinaryCrossEntropyWithLogitsFunction =
+    Tensor (*)(const Tensor&, const Tensor&);
 
 template <typename Logits, typename Target>
 concept CanComputeBinaryCrossEntropyWithLogits = requires {
@@ -27,6 +29,9 @@ static_assert(std::same_as<
                   std::declval<const Tensor&>(),
                   std::declval<const Tensor&>())),
               Tensor>);
+static_assert(std::same_as<
+              decltype(&nn::binary_cross_entropy_with_logits<float>),
+              BinaryCrossEntropyWithLogitsFunction>);
 static_assert(CanComputeBinaryCrossEntropyWithLogits<Tensor&, Tensor&>);
 static_assert(
     CanComputeBinaryCrossEntropyWithLogits<const Tensor&, const Tensor&>);
@@ -267,7 +272,18 @@ void test_binary_cross_entropy_with_logits_returns_nan_for_empty_tensors() {
                     "BCE-with-logits of empty tensors did not produce NaN");
 }
 
-void test_binary_cross_entropy_with_logits_preserves_ownership_contract() {
+void test_binary_cross_entropy_with_logits_uses_compensated_accumulation() {
+  const Tensor result = nn::binary_cross_entropy_with_logits(
+      Tensor::from_data(
+          {5}, {16777216.0F, 128.0F, 128.0F, 128.0F, 128.0F}),
+      Tensor::from_data(
+          {5}, {0.0F, 0.9921875F, 0.9921875F, 0.9921875F, 0.9921875F}));
+
+  expect_scalar_near(result, 3355444.0F, 0.0F,
+                     "BCE-with-logits did not compensate its loss accumulation");
+}
+
+void test_binary_cross_entropy_with_logits_does_not_consume_rvalues() {
   Tensor rvalue_logits = Tensor::from_data({2}, {0.0F, 0.0F});
   const Tensor target = Tensor::from_data({2}, {0.0F, 1.0F});
 
@@ -276,7 +292,9 @@ void test_binary_cross_entropy_with_logits_preserves_ownership_contract() {
 
   expect_scalar_near(rvalue_result, std::log(2.0F), 1.0e-6F,
                      "rvalue BCE-with-logits produced an inaccurate value");
-  expect_empty_sentinel(rvalue_logits);
+  expect(std::ranges::equal(rvalue_logits.elements(),
+                            Tensor::storage_type{0.0F, 0.0F}),
+         "BCE-with-logits consumed its rvalue logits");
 
   const Tensor const_logits = Tensor::from_data({2}, {0.0F, 0.0F});
   Tensor rvalue_target = Tensor::from_data({2}, {0.0F, 1.0F});
@@ -335,7 +353,8 @@ int main() {
     test_binary_cross_entropy_with_logits_rejects_invalid_targets();
     test_binary_cross_entropy_with_logits_rejects_different_shapes();
     test_binary_cross_entropy_with_logits_returns_nan_for_empty_tensors();
-    test_binary_cross_entropy_with_logits_preserves_ownership_contract();
+    test_binary_cross_entropy_with_logits_uses_compensated_accumulation();
+    test_binary_cross_entropy_with_logits_does_not_consume_rvalues();
     test_binary_cross_entropy_with_logits_rejects_sentinels();
   } catch (const std::exception& exception) {
     std::cerr << "FAILED: " << exception.what() << '\n';

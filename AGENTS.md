@@ -724,22 +724,25 @@ zero-extent и native floating-point контракт совпадает с MSE/
 не создавать преждевременный overflow. Реализация покрыта
 `tests/huber_loss_test.cpp` и прошла полное ревью с sanitizer-regression.
 
-Реализован `binary_cross_entropy_with_logits(Tensor<T> logits,
+Реализован `binary_cross_entropy_with_logits(const Tensor<T>& logits,
 const Tensor<T>& target)`. Формы должны точно совпадать, broadcasting запрещён,
 а каждый target должен быть конечным и принадлежать `[0, 1]`; soft labels
 поддерживаются. Функция возвращает rank-zero среднее и вычисляет BCE напрямую
 от logits без промежуточного sigmoid. Exact matching targets для бесконечных
 logits должны давать нулевую потерю, остальные несовпадающие конечные targets —
 `+infinity`; `NaN` logits распространяется. Sentinel, rank-zero и zero-extent контракт
-совпадает с остальными elementwise losses; logits пока принимается по значению как
-sink argument. Реализация
-покрыта `tests/binary_cross_entropy_with_logits_test.cpp` и прошла полное ревью
-с sanitizer-regression.
+совпадает с остальными elementwise losses; оба входа только читаются, а rvalue
+не потребляются. Target проверяется и поэлементная потеря вычисляется за один
+проход, готовые значения накапливаются через
+`detail::CompensatedAccumulator<T>` без промежуточного tensor за `O(N)` времени
+и `O(1)` дополнительной памяти. Реализация покрыта
+`tests/binary_cross_entropy_with_logits_test.cpp` и прошла полное ревью с
+sanitizer-regression.
 
 Перед categorical cross-entropy выполняется общий рефакторинг scalar losses.
 Kahan–Babuška–Neumaier accumulator вынесен из private-части `Tensor` в
 `include/nn/detail/compensated_accumulator.hpp` без изменения алгоритма и
-существующего поведения. MSE, MAE и Huber loss переведены на прямые read-only
-kernels с входами по `const&`, без промежуточного tensor и с `O(1)`
-дополнительной памятью. Следующий шаг — аналогично перевести binary
-cross-entropy with logits.
+существующего поведения. MSE, MAE, Huber loss и binary cross-entropy with
+logits переведены на прямые read-only kernels с входами по `const&`, без
+промежуточного tensor и с `O(1)` дополнительной памятью. Следующий шаг — общий
+аудит loss API, включая решение по общему traversal-helper.
