@@ -739,10 +739,13 @@ logits должны давать нулевую потерю, остальные
 `tests/binary_cross_entropy_with_logits_test.cpp` и прошла полное ревью с
 sanitizer-regression.
 
-Перед categorical cross-entropy выполняется общий рефакторинг scalar losses.
+Перед categorical cross-entropy выполнен общий рефакторинг scalar losses.
 Kahan–Babuška–Neumaier accumulator вынесен из private-части `Tensor` в
 `include/nn/detail/compensated_accumulator.hpp` без изменения алгоритма и
 существующего поведения. MSE, MAE, Huber loss и binary cross-entropy with
 logits переведены на прямые read-only kernels с входами по `const&`, без
-промежуточного tensor и с `O(1)` дополнительной памятью. Следующий шаг — общий
-аудит loss API, включая решение по общему traversal-helper.
+промежуточного tensor и с `O(1)` дополнительной памятью. Общий
+`detail::reduce_mean_elementwise_loss` принимает два tensor-входа, сам проверяет
+sentinel и точное равенство форм, после чего обходит contiguous storage через
+`std::span`, вызывает переданную поэлементную операцию и выполняет
+компенсированное усреднение. `T` выводится из tensor-аргументов.
